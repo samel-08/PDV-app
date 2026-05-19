@@ -1,0 +1,118 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Categoria {
+  id        String    @id @default(cuid())
+  nome      String    @unique
+  createdAt DateTime  @default(now())
+  produtos  Produto[]
+}
+
+model Produto {
+  id         String       @id @default(cuid())
+  codigo     String       @unique
+  nome       String
+  precoCusto Float
+  precoVenda Float
+  /// Markup sobre custo em % (ex.: 30 = 30%). Recalculado ao salvar com base nos preços.
+  markupPercent Float     @default(0)
+  /// KG | UN | CX | G
+  unidadeMedida String    @default("UN")
+  categoriaId  String?
+  categoria    Categoria? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  ativo        Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  itens        ItensVenda[]
+
+  @@index([ativo])
+  @@index([categoriaId])
+  @@index([nome])
+}
+/// Configuração fixa (uma linha) para leitura de código de barras de balança
+model ConfigBalanca {
+  id String @id @default("singleton")
+
+  tamanhoCodigoBarras    Int    @default(13)
+  /// Dígitos iniciais que identificam etiqueta da balança (ex.: "2"). Vazio = não valida prefixo.
+  prefixoIdentificacao   String @default("")
+  /// Posições 1-based (inclusive) do código do produto dentro do código de barras
+  codigoProdutoInicio    Int    @default(1)
+  codigoProdutoFim       Int    @default(6)
+  /// Posições 1-based (inclusive) do trecho numérico de peso ou valor
+  pesoValorInicio        Int    @default(7)
+  pesoValorFim           Int    @default(12)
+  /// PESO | VALOR
+  contemTipo             String @default("PESO")
+  /// Casas decimais do trecho (máx. 3 para peso, 2 para valor — validado na API)
+  casasDecimais          Int    @default(3)
+
+  updatedAt DateTime @updatedAt
+}
+
+/// Sessão de caixa (abertura até fechamento)
+model CaixaSessao {
+  id            String              @id @default(cuid())
+  abertoEm      DateTime            @default(now())
+  fechadoEm     DateTime?
+  valorInicial  Float
+  status        String              @default("ABERTO") // ABERTO | FECHADO
+  vendas        Venda[]
+  movimentacoes MovimentacaoCaixa[]
+}
+
+model Venda {
+  id             String   @id @default(cuid())
+  numero         Int      @unique
+  total          Float
+  formaPagamento String // DINHEIRO | PIX | CREDITO | DEBITO (CARTAO legado)
+  valorRecebido  Float
+  troco          Float
+  createdAt      DateTime @default(now())
+
+  caixaSessaoId String
+  caixaSessao   CaixaSessao @relation(fields: [caixaSessaoId], references: [id], onDelete: Restrict)
+
+  itens ItensVenda[]
+
+  @@index([createdAt])
+  @@index([caixaSessaoId, createdAt])
+}
+
+model ItensVenda {
+  id                 String  @id @default(cuid())
+  quantidade         Float
+  precoUnitario      Float
+  precoCustoSnapshot Float
+  subtotal           Float
+
+  vendaId String
+  venda   Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+
+  @@index([vendaId])
+  @@index([produtoId])
+}
+
+/// Tipos: ABERTURA | VENDA | SANGRIA | REFORCO | FECHAMENTO
+model MovimentacaoCaixa {
+  id                String   @id @default(cuid())
+  tipo              String
+  valor             Float
+  descricao         String?
+  referenciaVendaId String?
+  createdAt         DateTime @default(now())
+
+  caixaSessaoId String
+  caixaSessao   CaixaSessao @relation(fields: [caixaSessaoId], references: [id], onDelete: Cascade)
+
+  @@index([caixaSessaoId, createdAt])
+}
