@@ -9,6 +9,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     where: { id },
     include: {
       itens: { include: { produto: true } },
+      pagamentos: true,
       caixaSessao: { select: { id: true, abertoEm: true } },
     },
   });

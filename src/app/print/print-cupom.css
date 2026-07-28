@@ -1,0 +1,184 @@
+/**
+ * Estilos exclusivos da rota /print/* — cupom térmico 80mm.
+ * Não altera o restante do sistema (importado só em print/layout.tsx).
+ */
+
+/* Pré-visualização na tela */
+.print-route {
+  min-height: 100dvh;
+  background: #f4f4f5;
+}
+
+.cupom-thermal {
+  box-sizing: border-box;
+  width: 80mm;
+  max-width: 80mm;
+  margin: 0 auto;
+  padding: 4mm 3mm;
+  background: #fff;
+  color: #000;
+  font-family: Consolas, "Courier New", Courier, monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.cupom-thermal table {
+  width: 100%;
+  border-collapse: collapse;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.cupom-thermal th,
+.cupom-thermal td {
+  padding: 0.4mm 0;
+  vertical-align: top;
+  color: #000;
+  line-height: 1.12;
+}
+
+.cupom-thermal .cupom-titulo {
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+  margin: 0 0 1mm;
+}
+
+.cupom-thermal .cupom-loja {
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  margin: 0 0 0.5mm;
+}
+
+.cupom-thermal .cupom-meta {
+  font-size: 10.5px;
+  text-align: center;
+  margin: 0 0 0.4mm;
+  color: #000;
+}
+
+.cupom-thermal .cupom-linha {
+  border-top: 1px dashed #666;
+  margin: 1mm 0;
+}
+
+.cupom-thermal .cupom-total {
+  font-weight: 800;
+}
+
+.cupom-thermal .cupom-rodape {
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  margin-top: 1.2mm;
+  color: #000;
+}
+
+.cupom-thermal .cupom-rodape + .cupom-rodape {
+  margin-top: 0.4mm;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Imprime somente o cupom: esconde Providers, toasts, overlays Next, etc. */
+  body * {
+    visibility: hidden !important;
+  }
+
+  #cupom-impressao,
+  #cupom-impressao * {
+    visibility: visible !important;
+  }
+
+  #cupom-impressao {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .no-print,
+  .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Ícones, logos, SVGs e imagens fora do cupom (favicon, Next dev, etc.) */
+  img,
+  svg,
+  picture,
+  video,
+  canvas,
+  object,
+  embed,
+  [role="img"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Elementos injetados pelo Next.js em desenvolvimento */
+  nextjs-portal,
+  next-route-announcer,
+  [data-nextjs-dialog],
+  [data-nextjs-dialog-overlay],
+  [data-next-badge],
+  [data-next-mark],
+  #__next-build-watcher,
+  #__next-build-watcher * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .print-route {
+    min-height: 0 !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .cupom-thermal {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 1.5mm 3mm !important;
+    color: #000 !important;
+    font-weight: 600 !important;
+    line-height: 1.15 !important;
+    box-shadow: none !important;
+  }
+
+  /* Evita quebra feia no meio de linha de item */
+  .cupom-thermal table,
+  .cupom-thermal thead,
+  .cupom-thermal tbody,
+  .cupom-thermal tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

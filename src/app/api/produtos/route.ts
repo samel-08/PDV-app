@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const ativo = searchParams.get("ativo") ?? "todos";
   const categoriaId = (searchParams.get("categoriaId") ?? "").trim();
   const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
-  const pageSize = Math.min(50, Math.max(5, Number(searchParams.get("pageSize") ?? "10") || 10));
+  const pageSize = Math.min(100, Math.max(5, Number(searchParams.get("pageSize") ?? "10") || 10));
   const where: Prisma.ProdutoWhereInput = {};
 
   if (q) {

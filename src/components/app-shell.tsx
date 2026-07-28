@@ -4,13 +4,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Banknote,
-  FileUp,
+  FileSpreadsheet,
   LayoutDashboard,
   LogOut,
   Menu,
   Package,
   ReceiptText,
-  Scale,
+  Settings,
   ShoppingCart,
   X,
 } from "lucide-react";
@@ -20,11 +20,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/produtos", label: "Produtos", icon: Package },
-  { href: "/importar-produtos", label: "Importar CSV", icon: FileUp },
+  { href: "/importar-tabela", label: "Importar tabela", icon: FileSpreadsheet },
   { href: "/pdv", label: "PDV / Caixa", icon: ShoppingCart },
   { href: "/caixa", label: "Controle de caixa", icon: Banknote },
   { href: "/historico", label: "Histórico de vendas", icon: ReceiptText },
-  { href: "/configuracoes/balanca", label: "Balança / código de barras", icon: Scale },
+  { href: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

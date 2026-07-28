@@ -3,6 +3,9 @@ import { z } from "zod";
 export const UNIDADES = ["KG", "UN", "CX", "G"] as const;
 export type UnidadeMedida = (typeof UNIDADES)[number];
 
+export const FORMAS_PAGAMENTO = ["DINHEIRO", "PIX", "CREDITO", "DEBITO", "OUTROS"] as const;
+export type FormaPagamento = (typeof FORMAS_PAGAMENTO)[number];
+
 const categoriaIdField = z
   .union([z.string(), z.null(), z.literal("")])
   .optional()
@@ -18,6 +21,8 @@ export const produtoCreateSchema = z.object({
   precoVenda: z.coerce.number().nonnegative(),
   markupPercent: z.coerce.number().optional(),
   unidadeMedida: z.enum(UNIDADES).default("UN"),
+  estoqueAtual: z.coerce.number().optional().default(0),
+  estoqueMinimo: z.coerce.number().optional().default(0),
   categoriaId: categoriaIdField,
   ativo: z.coerce.boolean().optional().default(true),
 });
@@ -26,6 +31,11 @@ export const produtoUpdateSchema = produtoCreateSchema.partial();
 
 export const categoriaCreateSchema = z.object({
   nome: z.string().min(1, "Informe o nome da categoria.").max(80),
+});
+
+export const pagamentoSchema = z.object({
+  formaPagamento: z.enum(FORMAS_PAGAMENTO),
+  valor: z.coerce.number().positive("Valor do pagamento deve ser positivo."),
 });
 
 export const vendaCreateSchema = z.object({
@@ -39,8 +49,8 @@ export const vendaCreateSchema = z.object({
       })
     )
     .min(1),
-  formaPagamento: z.enum(["DINHEIRO", "PIX", "CREDITO", "DEBITO"]),
-  valorRecebido: z.coerce.number().nonnegative(),
+  pagamentos: z.array(pagamentoSchema).min(1, "Informe pelo menos uma forma de pagamento."),
+  valorRecebido: z.coerce.number().nonnegative().optional(),
 });
 
 export const caixaAbrirSchema = z.object({
@@ -50,6 +60,17 @@ export const caixaAbrirSchema = z.object({
 export const caixaValorSchema = z.object({
   valor: z.coerce.number().positive(),
   descricao: z.string().max(200).optional(),
+});
+
+export const caixaFecharSchema = z.object({
+  saldoInformado: z.coerce.number().nonnegative().optional(),
+});
+
+export const ajusteEstoqueSchema = z.object({
+  produtoId: z.string().min(1),
+  tipo: z.enum(["ENTRADA", "SAIDA", "AJUSTE"]),
+  quantidade: z.coerce.number().positive("Quantidade deve ser positiva."),
+  motivo: z.string().min(1, "Motivo é obrigatório.").max(200),
 });
 
 export const configBalancaSchema = z

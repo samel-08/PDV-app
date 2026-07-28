@@ -23,8 +23,53 @@ export async function GET(req: Request) {
     }),
   ]);
 
+  const vendaIds = rows
+    .map((row) => row.referenciaVendaId)
+    .filter((id): id is string => Boolean(id));
+
+  const numerosVenda = rows
+    .filter((row) => row.tipo === "VENDA" && row.descricao)
+    .map((row) => {
+      const match = row.descricao!.match(/Venda\s*#(\d+)/i);
+      return match ? Number(match[1]) : null;
+    })
+    .filter((n): n is number => n !== null && Number.isFinite(n));
+
+  const vendas =
+    vendaIds.length || numerosVenda.length
+      ? await prisma.venda.findMany({
+          where: {
+            OR: [
+              ...(vendaIds.length ? [{ id: { in: vendaIds } }] : []),
+              ...(numerosVenda.length ? [{ numero: { in: numerosVenda } }] : []),
+            ],
+          },
+          select: { id: true, numero: true, total: true },
+        })
+      : [];
+
+  const totalPorVendaId = new Map(vendas.map((venda) => [venda.id, venda.total]));
+  const totalPorVendaNumero = new Map(vendas.map((venda) => [venda.numero, venda.total]));
+
+  function valorExibicaoMov(row: (typeof rows)[number]): number {
+    if (row.tipo !== "VENDA") return row.valor;
+    if (row.referenciaVendaId) {
+      const total = totalPorVendaId.get(row.referenciaVendaId);
+      if (total != null) return total;
+    }
+    const match = row.descricao?.match(/Venda\s*#(\d+)/i);
+    if (match) {
+      const total = totalPorVendaNumero.get(Number(match[1]));
+      if (total != null) return total;
+    }
+    return row.valor;
+  }
+
   return NextResponse.json({
-    data: rows,
+    data: rows.map((row) => ({
+      ...row,
+      valorExibicao: valorExibicaoMov(row),
+    })),
     page,
     pageSize,
     total,

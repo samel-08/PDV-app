@@ -1,16 +1,19 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Printer, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
 import { formatBRL, formatDateInput, formatDateTime, formatQty } from "@/lib/format";
+import { openVendaPrint } from "@/lib/print-venda";
 
 type VendaListItem = {
   id: string;
   numero: number;
   total: number;
   formaPagamento: string;
+  valorRecebido: number;
+  troco: number;
   createdAt: string;
   itens: {
     quantidade: number;
@@ -18,6 +21,7 @@ type VendaListItem = {
     subtotal: number;
     produto: { nome: string; codigo: string };
   }[];
+  pagamentos: { formaPagamento: string; valor: number }[];
 };
 
 type ListResponse = {
@@ -31,10 +35,17 @@ type ListResponse = {
 function labelPagamento(p: string) {
   if (p === "DINHEIRO") return "Dinheiro";
   if (p === "PIX") return "Pix";
+  if (p === "OUTROS") return "Outros";
+  if (p === "MULTIPLO") return "Multiplo";
   if (p === "CREDITO") return "Crédito";
   if (p === "DEBITO") return "Débito";
   if (p === "CARTAO") return "Cartão (legado)";
   return p;
+}
+
+function pagamentosResumo(v: VendaListItem): string {
+  if (!v.pagamentos.length) return labelPagamento(v.formaPagamento);
+  return v.pagamentos.map((p) => `${labelPagamento(p.formaPagamento)} ${formatBRL(p.valor)}`).join(" + ");
 }
 
 export default function HistoricoPage() {
@@ -175,18 +186,28 @@ export default function HistoricoPage() {
                     <td className="px-4 py-3 font-mono text-xs font-semibold">#{v.numero}</td>
                     <td className="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400">{formatDateTime(v.createdAt)}</td>
                     <td className="px-4 py-3 font-semibold">{formatBRL(v.total)}</td>
-                    <td className="px-4 py-3">{labelPagamento(v.formaPagamento)}</td>
+                    <td className="px-4 py-3 text-xs">{pagamentosResumo(v)}</td>
                     <td className="px-4 py-3 text-xs text-zinc-600 dark:text-zinc-400">
                       {v.itens.length} {v.itens.length === 1 ? "item" : "itens"}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => setDetalhe(v)}
-                        className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-                      >
-                        Detalhes
-                      </button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openVendaPrint(v.id)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                          Reimprimir nota
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDetalhe(v)}
+                          className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-semibold hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                        >
+                          Detalhes
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -221,7 +242,23 @@ export default function HistoricoPage() {
         </div>
       </div>
 
-      <Modal open={!!detalhe} title={detalhe ? `Venda #${detalhe.numero}` : "Detalhes"} onClose={() => setDetalhe(null)}>
+      <Modal
+        open={!!detalhe}
+        title={detalhe ? `Venda #${detalhe.numero}` : "Detalhes"}
+        onClose={() => setDetalhe(null)}
+        footer={
+          detalhe ? (
+            <button
+              type="button"
+              onClick={() => openVendaPrint(detalhe.id)}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white sm:w-auto"
+            >
+              <Printer className="h-4 w-4" />
+              Reimprimir nota
+            </button>
+          ) : undefined
+        }
+      >
         {detalhe ? (
           <div className="space-y-3 text-sm">
             <div className="grid gap-2 rounded-xl border border-zinc-200 p-3 text-xs dark:border-zinc-800">
@@ -231,12 +268,28 @@ export default function HistoricoPage() {
               </div>
               <div className="flex justify-between gap-3">
                 <span className="text-zinc-600 dark:text-zinc-400">Pagamento</span>
-                <span className="font-medium">{labelPagamento(detalhe.formaPagamento)}</span>
+                <span className="font-medium">{pagamentosResumo(detalhe)}</span>
               </div>
               <div className="flex justify-between gap-3">
                 <span className="text-zinc-600 dark:text-zinc-400">Total</span>
                 <span className="font-semibold">{formatBRL(detalhe.total)}</span>
               </div>
+              {detalhe.pagamentos.length > 0 ? (
+                <>
+                  {detalhe.pagamentos.map((p, idx) => (
+                    <div key={idx} className="flex justify-between gap-3">
+                      <span className="text-zinc-600 dark:text-zinc-400">{labelPagamento(p.formaPagamento)}</span>
+                      <span className="font-medium">{formatBRL(p.valor)}</span>
+                    </div>
+                  ))}
+                  {detalhe.troco > 0 ? (
+                    <div className="flex justify-between gap-3">
+                      <span className="text-zinc-600 dark:text-zinc-400">Troco</span>
+                      <span className="font-medium">{formatBRL(detalhe.troco)}</span>
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
             </div>
 
             <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Itens</div>

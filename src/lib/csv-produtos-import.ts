@@ -28,7 +28,6 @@ type ParsedRowKeys = {
 
 const HEADER_ALIASES: Record<string, keyof ParsedRowKeys> = {
   codigo: "codigo",
-  código: "codigo",
   "código": "codigo",
   ean: "codigo",
   "código de barras": "codigo",

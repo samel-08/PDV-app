@@ -34,6 +34,7 @@ export async function GET(req: Request) {
         itens: {
           include: { produto: { select: { nome: true, codigo: true } } },
         },
+        pagamentos: true,
       },
     }),
   ]);
@@ -49,12 +50,23 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const parsed = vendaCreateSchema.parse(await req.json());
+    const body = await req.json();
+
+    // Backwards compatibility: convert old format (single formaPagamento + valorRecebido) to new
+    let parsed;
+    if (body.formaPagamento && !body.pagamentos) {
+      const pagamentos = [{ formaPagamento: body.formaPagamento, valor: body.valorRecebido ?? 0 }];
+      parsed = vendaCreateSchema.parse({ ...body, pagamentos });
+    } else {
+      parsed = vendaCreateSchema.parse(body);
+    }
+
     const venda = await finalizarVenda(parsed);
     const full = await prisma.venda.findUnique({
       where: { id: venda.id },
       include: {
         itens: { include: { produto: true } },
+        pagamentos: true,
       },
     });
     return NextResponse.json(full, { status: 201 });

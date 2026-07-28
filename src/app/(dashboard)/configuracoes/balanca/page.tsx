@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ConfigBalancaDTO } from "@/lib/balanca-types";
 import { useToast } from "@/contexts/toast-context";
@@ -61,6 +62,12 @@ export default function ConfigBalancaPage() {
 
   return (
     <div className="space-y-4">
+      <Link
+        href="/configuracoes"
+        className="inline-block text-sm font-semibold text-emerald-700 underline dark:text-emerald-300"
+      >
+        ← Voltar para configurações
+      </Link>
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Balança e código de barras</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">

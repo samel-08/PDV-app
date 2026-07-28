@@ -24,17 +24,21 @@ model Produto {
   markupPercent Float     @default(0)
   /// KG | UN | CX | G
   unidadeMedida String    @default("UN")
+  estoqueAtual  Float     @default(0)
+  estoqueMinimo Float     @default(0)
   categoriaId  String?
   categoria    Categoria? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
   ativo        Boolean    @default(true)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   itens        ItensVenda[]
+  movimentacoesEstoque MovimentacaoEstoque[]
 
   @@index([ativo])
   @@index([categoriaId])
   @@index([nome])
 }
+
 /// Configuração fixa (uma linha) para leitura de código de barras de balança
 model ConfigBalanca {
   id String @id @default("singleton")
@@ -56,12 +60,32 @@ model ConfigBalanca {
   updatedAt DateTime @updatedAt
 }
 
+/// Configuração geral do sistema (singleton)
+model ConfigSistema {
+  id                       String  @id @default("singleton")
+  permitirEstoqueNegativo Boolean @default(false)
+  nomeFantasia            String?
+  razaoSocial             String?
+  cnpj                    String?
+  inscricaoEstadual       String?
+  telefoneWhatsApp        String?
+  enderecoCompleto        String?
+  cidade                  String?
+  estado                  String?
+  cep                     String?
+  mensagemRodapeCupom     String?
+  observacaoCupom         String?
+}
+
 /// Sessão de caixa (abertura até fechamento)
 model CaixaSessao {
   id            String              @id @default(cuid())
   abertoEm      DateTime            @default(now())
   fechadoEm     DateTime?
   valorInicial  Float
+  saldoFinalEsperado  Float?
+  saldoFinalInformado Float?
+  diferenca           Float?
   status        String              @default("ABERTO") // ABERTO | FECHADO
   vendas        Venda[]
   movimentacoes MovimentacaoCaixa[]
@@ -71,18 +95,21 @@ model Venda {
   id             String   @id @default(cuid())
   numero         Int      @unique
   total          Float
-  formaPagamento String // DINHEIRO | PIX | CREDITO | DEBITO (CARTAO legado)
+  formaPagamento String   // DINHEIRO | PIX | CREDITO | DEBITO | MULTIPLO
   valorRecebido  Float
   troco          Float
+  status         String   @default("CONCLUIDA") // CONCLUIDA | CANCELADA
   createdAt      DateTime @default(now())
 
   caixaSessaoId String
   caixaSessao   CaixaSessao @relation(fields: [caixaSessaoId], references: [id], onDelete: Restrict)
 
-  itens ItensVenda[]
+  itens       ItensVenda[]
+  pagamentos  PagamentoVenda[]
 
   @@index([createdAt])
   @@index([caixaSessaoId, createdAt])
+  @@index([status])
 }
 
 model ItensVenda {
@@ -102,6 +129,19 @@ model ItensVenda {
   @@index([produtoId])
 }
 
+/// Pagamentos associados a uma venda (suporte a múltiplas formas)
+model PagamentoVenda {
+  id             String   @id @default(cuid())
+  formaPagamento String   // DINHEIRO | PIX | CREDITO | DEBITO | OUTROS
+  valor          Float
+  createdAt      DateTime @default(now())
+
+  vendaId String
+  venda   Venda @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  @@index([vendaId])
+}
+
 /// Tipos: ABERTURA | VENDA | SANGRIA | REFORCO | FECHAMENTO
 model MovimentacaoCaixa {
   id                String   @id @default(cuid())
@@ -115,4 +155,180 @@ model MovimentacaoCaixa {
   caixaSessao   CaixaSessao @relation(fields: [caixaSessaoId], references: [id], onDelete: Cascade)
 
   @@index([caixaSessaoId, createdAt])
+}
+
+/// Histórico de movimentação de estoque
+model MovimentacaoEstoque {
+  id         String   @id @default(cuid())
+  tipo       String   // ENTRADA | SAIDA | AJUSTE | VENDA | CANCELAMENTO
+  quantidade Float
+  motivo     String
+  createdAt  DateTime @default(now())
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@index([produtoId, createdAt])
+}
+
+/// Empresa cliente do SaaS. Nesta fase ainda nao isola os dados operacionais existentes.
+model Empresa {
+  id        String   @id @default(cuid())
+  nome      String
+  cnpj      String?  @unique
+  email     String?
+  telefone  String?
+  /// ATIVA | BLOQUEADA | CANCELADA
+  status    String   @default("ATIVA")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios  UsuarioEmpresa[]
+  licencas  LicencaEmpresa[]
+  auditLogs AuditLog[]
+  cobrancas CobrancaLicenca[]
+
+  @@index([status])
+  @@index([nome])
+}
+
+/// Usuario autenticavel do sistema. Substituira gradualmente o login por .env.
+model Usuario {
+  id         String   @id @default(cuid())
+  nome       String
+  email      String   @unique
+  senhaHash  String
+  /// ATIVO | BLOQUEADO
+  status     String   @default("ATIVO")
+  /// SUPER_ADMIN para acesso global; null para usuarios vinculados a empresas.
+  roleGlobal String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  empresas  UsuarioEmpresa[]
+  auditLogs AuditLog[]
+
+  @@index([status])
+  @@index([roleGlobal])
+}
+
+/// Vinculo entre usuario e empresa, com cargo dentro daquela empresa.
+model UsuarioEmpresa {
+  id        String   @id @default(cuid())
+  usuarioId String
+  empresaId String
+  /// ADMINISTRADOR | GERENTE | CAIXA
+  cargo     String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, empresaId])
+  @@index([empresaId, cargo])
+  @@index([usuarioId])
+}
+
+/// Plano comercial. Nesta fase existe apenas o Plano Completo.
+model Plano {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  descricao   String?
+  /// Duracao padrao para renovacao de licencas.
+  duracaoDias Int
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  licencas  LicencaEmpresa[]
+  cobrancas CobrancaLicenca[]
+
+  @@index([ativo])
+}
+
+/// Licenca de uso por empresa. Controlara bloqueio operacional nas proximas fases.
+model LicencaEmpresa {
+  id             String   @id @default(cuid())
+  empresaId      String
+  planoId        String
+  /// ATIVA | VENCIDA | BLOQUEADA | CANCELADA
+  status         String   @default("ATIVA")
+  inicioEm       DateTime @default(now())
+  expiraEm       DateTime
+  motivoBloqueio String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  plano   Plano   @relation(fields: [planoId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId, status])
+  @@index([planoId])
+  @@index([expiraEm])
+}
+
+/// Log de auditoria para acoes importantes de usuarios e SUPER_ADMIN.
+model AuditLog {
+  id            String   @id @default(cuid())
+  empresaId     String?
+  usuarioId     String?
+  /// Papel/cargo de quem executou a acao: SUPER_ADMIN | ADMINISTRADOR | GERENTE | CAIXA
+  createdByRole String?
+  acao          String
+  entidade      String?
+  entidadeId    String?
+  detalhes      String?
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, createdAt])
+  @@index([usuarioId, createdAt])
+  @@index([acao, createdAt])
+  @@index([createdByRole, createdAt])
+}
+
+/// Cobranca de licenca para futura integracao com Mercado Pago ou Asaas.
+model CobrancaLicenca {
+  id          String    @id @default(cuid())
+  empresaId   String
+  planoId     String
+  /// MERCADO_PAGO | ASAAS
+  provider    String
+  providerRef String?
+  valor       Decimal
+  /// PENDENTE | PAGO | CANCELADO | EXPIRADO
+  status      String    @default("PENDENTE")
+  vencimento  DateTime?
+  pagoEm      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  plano   Plano   @relation(fields: [planoId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerRef])
+  @@index([empresaId, status])
+  @@index([planoId])
+}
+
+/// Evento bruto de webhook recebido de provedores de pagamento.
+model WebhookEvent {
+  id           String    @id @default(cuid())
+  provider     String
+  eventId      String
+  tipo         String?
+  payload      String
+  processado   Boolean   @default(false)
+  erro         String?
+  createdAt    DateTime  @default(now())
+  processadoEm DateTime?
+
+  @@unique([provider, eventId])
+  @@index([provider, processado])
+  @@index([createdAt])
 }
