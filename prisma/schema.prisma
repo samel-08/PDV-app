@@ -8,15 +8,22 @@ datasource db {
 }
 
 model Categoria {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id        String    @id @default(cuid())
-  nome      String    @unique
+  nome      String
   createdAt DateTime  @default(now())
   produtos  Produto[]
+  @@unique([empresaId, id])
+  @@unique([empresaId, nome])
+
 }
 
 model Produto {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id         String       @id @default(cuid())
-  codigo     String       @unique
+  codigo     String
   nome       String
   precoCusto Float
   precoVenda Float
@@ -27,7 +34,7 @@ model Produto {
   estoqueAtual  Float     @default(0)
   estoqueMinimo Float     @default(0)
   categoriaId  String?
-  categoria    Categoria? @relation(fields: [categoriaId], references: [id], onDelete: SetNull)
+  categoria    Categoria? @relation(fields: [empresaId, categoriaId], references: [empresaId, id], onDelete: Restrict)
   ativo        Boolean    @default(true)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
@@ -37,11 +44,16 @@ model Produto {
   @@index([ativo])
   @@index([categoriaId])
   @@index([nome])
+  @@unique([empresaId, id])
+  @@unique([empresaId, codigo])
+
 }
 
-/// Configuração fixa (uma linha) para leitura de código de barras de balança
+/// Configuração por empresa para leitura de etiquetas de balança .
 model ConfigBalanca {
-  id String @id @default("singleton")
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id String @id @default(cuid())
 
   tamanhoCodigoBarras    Int    @default(13)
   /// Dígitos iniciais que identificam etiqueta da balança (ex.: "2"). Vazio = não valida prefixo.
@@ -58,11 +70,15 @@ model ConfigBalanca {
   casasDecimais          Int    @default(3)
 
   updatedAt DateTime @updatedAt
+  @@unique([empresaId])
+
 }
 
-/// Configuração geral do sistema (singleton)
+/// Configuração geral por empresa .
 model ConfigSistema {
-  id                       String  @id @default("singleton")
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id                       String  @id @default(cuid())
   permitirEstoqueNegativo Boolean @default(false)
   nomeFantasia            String?
   razaoSocial             String?
@@ -75,10 +91,16 @@ model ConfigSistema {
   cep                     String?
   mensagemRodapeCupom     String?
   observacaoCupom         String?
+  @@unique([empresaId])
+
 }
 
 /// Sessão de caixa (abertura até fechamento)
 model CaixaSessao {
+  operadorId String?
+  operador UsuarioEmpresa? @relation("OperadorCaixaSessao", fields: [operadorId, empresaId], references: [usuarioId, empresaId], onDelete: Restrict)
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id            String              @id @default(cuid())
   abertoEm      DateTime            @default(now())
   fechadoEm     DateTime?
@@ -89,11 +111,19 @@ model CaixaSessao {
   status        String              @default("ABERTO") // ABERTO | FECHADO
   vendas        Venda[]
   movimentacoes MovimentacaoCaixa[]
+  @@unique([empresaId, id])
+
 }
 
 model Venda {
+  operadorId String?
+  operador UsuarioEmpresa? @relation("OperadorVenda", fields: [operadorId, empresaId], references: [usuarioId, empresaId], onDelete: Restrict)
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id             String   @id @default(cuid())
-  numero         Int      @unique
+  chaveIdempotencia String?
+  requisicaoHash String?
+  numero         Int
   total          Float
   formaPagamento String   // DINHEIRO | PIX | CREDITO | DEBITO | MULTIPLO
   valorRecebido  Float
@@ -102,17 +132,25 @@ model Venda {
   createdAt      DateTime @default(now())
 
   caixaSessaoId String
-  caixaSessao   CaixaSessao @relation(fields: [caixaSessaoId], references: [id], onDelete: Restrict)
+  caixaSessao   CaixaSessao @relation(fields: [empresaId, caixaSessaoId], references: [empresaId, id], onDelete: Restrict)
 
   itens       ItensVenda[]
   pagamentos  PagamentoVenda[]
+  movimentosCaixa MovimentacaoCaixa[]
 
   @@index([createdAt])
   @@index([caixaSessaoId, createdAt])
   @@index([status])
+  @@unique([empresaId, id])
+  @@unique([empresaId, numero])
+
+  @@unique([empresaId, chaveIdempotencia])
+
 }
 
 model ItensVenda {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id                 String  @id @default(cuid())
   quantidade         Float
   precoUnitario      Float
@@ -120,45 +158,62 @@ model ItensVenda {
   subtotal           Float
 
   vendaId String
-  venda   Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  venda   Venda   @relation(fields: [empresaId, vendaId], references: [empresaId, id], onDelete: Cascade)
 
   produtoId String
-  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Restrict)
+  produto   Produto @relation(fields: [empresaId, produtoId], references: [empresaId, id], onDelete: Restrict)
 
   @@index([vendaId])
   @@index([produtoId])
+  @@index([empresaId])
+
 }
 
 /// Pagamentos associados a uma venda (suporte a múltiplas formas)
 model PagamentoVenda {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id             String   @id @default(cuid())
   formaPagamento String   // DINHEIRO | PIX | CREDITO | DEBITO | OUTROS
   valor          Float
   createdAt      DateTime @default(now())
 
   vendaId String
-  venda   Venda @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  venda   Venda @relation(fields: [empresaId, vendaId], references: [empresaId, id], onDelete: Cascade)
 
   @@index([vendaId])
+  @@index([empresaId])
+
 }
 
 /// Tipos: ABERTURA | VENDA | SANGRIA | REFORCO | FECHAMENTO
 model MovimentacaoCaixa {
+  operadorId String?
+  operador UsuarioEmpresa? @relation("OperadorMovimentacaoCaixa", fields: [operadorId, empresaId], references: [usuarioId, empresaId], onDelete: Restrict)
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id                String   @id @default(cuid())
   tipo              String
   valor             Float
   descricao         String?
   referenciaVendaId String?
+  referenciaVenda Venda? @relation(fields: [empresaId, referenciaVendaId], references: [empresaId, id], onDelete: Restrict)
   createdAt         DateTime @default(now())
 
   caixaSessaoId String
-  caixaSessao   CaixaSessao @relation(fields: [caixaSessaoId], references: [id], onDelete: Cascade)
+  caixaSessao   CaixaSessao @relation(fields: [empresaId, caixaSessaoId], references: [empresaId, id], onDelete: Cascade)
 
   @@index([caixaSessaoId, createdAt])
+  @@index([empresaId])
+
 }
 
 /// Histórico de movimentação de estoque
 model MovimentacaoEstoque {
+  operadorId String?
+  operador UsuarioEmpresa? @relation("OperadorMovimentacaoEstoque", fields: [operadorId, empresaId], references: [usuarioId, empresaId], onDelete: Restrict)
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   id         String   @id @default(cuid())
   tipo       String   // ENTRADA | SAIDA | AJUSTE | VENDA | CANCELAMENTO
   quantidade Float
@@ -166,12 +221,14 @@ model MovimentacaoEstoque {
   createdAt  DateTime @default(now())
 
   produtoId String
-  produto   Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  produto   Produto @relation(fields: [empresaId, produtoId], references: [empresaId, id], onDelete: Cascade)
 
   @@index([produtoId, createdAt])
+  @@index([empresaId])
+
 }
 
-/// Empresa cliente do SaaS. Nesta fase ainda nao isola os dados operacionais existentes.
+/// Empresa proprietária dos dados operacionais.
 model Empresa {
   id        String   @id @default(cuid())
   nome      String
@@ -190,9 +247,21 @@ model Empresa {
 
   @@index([status])
   @@index([nome])
+  categorias Categoria[]
+  produtos Produto[]
+  configsBalanca ConfigBalanca[]
+  configsSistema ConfigSistema[]
+  caixas CaixaSessao[]
+  vendas Venda[]
+  sequencia SequenciaVenda?
+  itens ItensVenda[]
+  pagamentos PagamentoVenda[]
+  movimentosCaixa MovimentacaoCaixa[]
+  movimentosEstoque MovimentacaoEstoque[]
+
 }
 
-/// Usuario autenticavel do sistema. Substituira gradualmente o login por .env.
+/// Usuário autenticado por senha e vínculo ativo com empresa.
 model Usuario {
   id         String   @id @default(cuid())
   nome       String
@@ -220,6 +289,7 @@ model UsuarioEmpresa {
   /// ADMINISTRADOR | GERENTE | CAIXA
   cargo     String
   ativo     Boolean  @default(true)
+  sessoes SessaoUsuario[]
   createdAt DateTime @default(now())
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
@@ -228,6 +298,11 @@ model UsuarioEmpresa {
   @@unique([usuarioId, empresaId])
   @@index([empresaId, cargo])
   @@index([usuarioId])
+  operacoesVenda Venda[] @relation("OperadorVenda")
+  operacoesCaixaSessao CaixaSessao[] @relation("OperadorCaixaSessao")
+  operacoesMovimentacaoCaixa MovimentacaoCaixa[] @relation("OperadorMovimentacaoCaixa")
+  operacoesMovimentacaoEstoque MovimentacaoEstoque[] @relation("OperadorMovimentacaoEstoque")
+
 }
 
 /// Plano comercial. Nesta fase existe apenas o Plano Completo.
@@ -331,4 +406,30 @@ model WebhookEvent {
   @@unique([provider, eventId])
   @@index([provider, processado])
   @@index([createdAt])
+}
+
+/// Uma sessão revogável por login e vínculo, sem fallback para sessão legada.
+model SessaoUsuario {
+  id String @id
+  usuarioId String
+  empresaId String
+  vinculo UsuarioEmpresa @relation(fields: [usuarioId, empresaId], references: [usuarioId, empresaId], onDelete: Cascade)
+  criadaEm DateTime @default(now())
+  expiraEm DateTime
+  revogadaEm DateTime?
+  @@index([usuarioId, expiraEm])
+}
+
+/// Incrementado na mesma transação que conclui uma venda.
+model SequenciaVenda {
+  empresaId String @id
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  ultimoNumero Int @default(0)
+}
+
+/// Limitação compartilhada entre processos, sem armazenar o login em texto.
+model LoginThrottle {
+  id String @id
+  tentativas Int @default(0)
+  janelaEm DateTime
 }

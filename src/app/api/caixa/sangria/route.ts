@@ -1,26 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { MOV_TIPO, getCaixaAberto } from "@/lib/caixa-service";
+import { empresaId, AccessError } from "@/lib/tenant-context";
+import { tenantRoute, MANAGERS } from "@/lib/tenant-route";
 import { caixaValorSchema } from "@/lib/validators";
-
 export async function POST(req: Request) {
-  try {
+  return tenantRoute(req, MANAGERS, async () => {
     const body = caixaValorSchema.parse(await req.json());
-    const sessao = await getCaixaAberto();
-    if (!sessao) {
-      return NextResponse.json({ error: "Não há caixa aberto." }, { status: 400 });
-    }
-    const mov = await prisma.movimentacaoCaixa.create({
-      data: {
-        caixaSessaoId: sessao.id,
-        tipo: MOV_TIPO.SANGRIA,
-        valor: -Math.abs(body.valor),
-        descricao: body.descricao ?? "Sangria",
-      },
+    const result = await prisma.$transaction(async (tx) => {
+      const session = await tx.caixaSessao.findFirst({
+        where: { status: "ABERTO" },
+      });
+      if (!session) throw new AccessError("Não há caixa aberto.", 400);
+      return tx.movimentacaoCaixa.create({
+        data: {
+          empresaId: empresaId(),
+          caixaSessaoId: session.id,
+          tipo: "SANGRIA",
+          valor: -Math.abs(body.valor),
+          descricao: body.descricao ?? "SANGRIA",
+        },
+      });
     });
-    return NextResponse.json(mov, { status: 201 });
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Erro ao registrar sangria.";
-    return NextResponse.json({ error: msg }, { status: 400 });
-  }
+    return NextResponse.json(result, { status: 201 });
+  });
 }
+export const runtime = "nodejs";

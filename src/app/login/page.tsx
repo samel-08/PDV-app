@@ -1,11 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { notifySessionChange } from "@/components/session-gate";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 function LoginForm() {
-  const router = useRouter();
   const sp = useSearchParams();
   const from = sp.get("from") || "/";
 
@@ -29,8 +29,13 @@ function LoginForm() {
         setError(j.error ?? "Não foi possível entrar.");
         return;
       }
-      router.replace(from.startsWith("/") ? from : "/");
-      router.refresh();
+      notifySessionChange();
+      const destination = new URL(from, window.location.origin);
+      window.location.replace(
+        destination.origin === window.location.origin ? destination.href : "/",
+      );
+    } catch {
+      setError("Não foi possível conectar. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -56,18 +61,32 @@ function LoginForm() {
 
           <form className="mt-6 space-y-4" onSubmit={onSubmit}>
             <div>
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Usuário (opcional)</label>
+              <label
+                htmlFor="login-user"
+                className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
+              >
+                Usuário ou e-mail
+              </label>
               <input
+                id="login-user"
+                required
                 value={usuario}
                 onChange={(e) => setUsuario(e.target.value)}
                 autoComplete="username"
                 className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-950"
-                placeholder="Se configurado no servidor"
+                placeholder="Seu acesso"
               />
             </div>
             <div>
-              <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Senha</label>
+              <label
+                htmlFor="login-password"
+                className="text-xs font-medium text-zinc-600 dark:text-zinc-400"
+              >
+                Senha
+              </label>
               <input
+                id="login-password"
+                required
                 type="password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}

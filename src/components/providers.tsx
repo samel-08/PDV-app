@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { useState } from "react";
+import { SessionGate } from "@/components/session-gate";
 import { ToastProvider } from "@/contexts/toast-context";
 
 /**
@@ -27,13 +28,20 @@ export function Providers({ children }: { children: React.ReactNode }) {
             retry: 0,
           },
         },
-      })
+      }),
   );
 
   return (
     <QueryClientProvider client={client}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-        <ToastProvider>{children}</ToastProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <ToastProvider>
+          <SessionGate>{children}</SessionGate>
+        </ToastProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

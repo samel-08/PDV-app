@@ -1,7 +1,8 @@
 "use client";
 
+import { useSession, notifySessionChange } from "@/components/session-gate";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   Banknote,
   FileSpreadsheet,
@@ -30,37 +31,45 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const session = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     setMenuOpen(false);
-    router.push("/login");
-    router.refresh();
+    notifySessionChange();
+    window.location.replace("/login");
   }
 
   const NavLinks = (
     <nav className="flex flex-1 flex-col gap-1 p-3">
-      {nav.map((item) => {
-        const active = pathname === item.href;
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={() => setMenuOpen(false)}
-            className={
-              active
-                ? "flex items-center gap-3 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white shadow-sm"
-                : "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/80"
-            }
-          >
-            <Icon className="h-5 w-5 shrink-0 opacity-90" />
-            {item.label}
-          </Link>
-        );
-      })}
+      {nav
+        .filter((item) =>
+          session?.cargo === "CAIXA"
+            ? ["/pdv", "/historico"].includes(item.href)
+            : session?.cargo === "GERENTE"
+              ? item.href !== "/configuracoes"
+              : true,
+        )
+        .map((item) => {
+          const active = pathname === item.href;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setMenuOpen(false)}
+              className={
+                active
+                  ? "flex items-center gap-3 rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white shadow-sm"
+                  : "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800/80"
+              }
+            >
+              <Icon className="h-5 w-5 shrink-0 opacity-90" />
+              {item.label}
+            </Link>
+          );
+        })}
     </nav>
   );
 
@@ -76,8 +85,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Menu className="h-6 w-6" />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-semibold leading-tight">PDV Comércio</div>
-          <div className="truncate text-xs text-zinc-500">Gestão de vendas</div>
+          <div className="truncate text-sm font-semibold leading-tight">
+            PDV Comércio
+          </div>
+          <div className="truncate text-xs text-zinc-500">
+            {session?.empresaNome} · {session?.cargo.toLowerCase()}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <ThemeToggle />
@@ -132,7 +145,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       ) : null}
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        {children}
+      </main>
     </div>
   );
 }

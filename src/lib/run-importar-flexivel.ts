@@ -1,15 +1,26 @@
+import { empresaId } from "@/lib/tenant-context";
 /**
  * Executa a importacao flexivel de produtos no banco.
  * Suporta modos: ignorar existentes / atualizar existentes.
  */
 import { prisma } from "@/lib/db";
 import { markupFromPrecos } from "@/lib/produto-precos";
-import type { NormalizedImportRow, ImportResult, ImportResultRow, ImportMode } from "@/lib/importar-produtos-flexivel";
+import type {
+  NormalizedImportRow,
+  ImportResult,
+  ImportResultRow,
+  ImportMode,
+} from "@/lib/importar-produtos-flexivel";
 
 const BATCH_SIZE = 25;
 
 function isPrismaUnique(e: unknown): boolean {
-  return typeof e === "object" && e !== null && "code" in e && (e as { code: string }).code === "P2002";
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e as { code: string }).code === "P2002"
+  );
 }
 
 function generateCodigo(): string {
@@ -20,7 +31,7 @@ function generateCodigo(): string {
 
 export async function importarProdutosFlexivel(
   rows: NormalizedImportRow[],
-  mode: ImportMode
+  mode: ImportMode,
 ): Promise<ImportResult> {
   let criados = 0;
   let atualizados = 0;
@@ -48,7 +59,11 @@ export async function importarProdutosFlexivel(
             const uniqueKey = codigo.toLowerCase();
             if (seenInFile.has(uniqueKey)) {
               ignorados += 1;
-              detalhes.push({ line: row.line, status: "ignorado", message: `Codigo "${codigo}" repetido no arquivo.` });
+              detalhes.push({
+                line: row.line,
+                status: "ignorado",
+                message: `Codigo "${codigo}" repetido no arquivo.`,
+              });
               continue;
             }
             seenInFile.add(uniqueKey);
@@ -58,7 +73,11 @@ export async function importarProdutosFlexivel(
             if (existingId) {
               if (mode === "ignorar") {
                 ignorados += 1;
-                detalhes.push({ line: row.line, status: "ignorado", message: `Codigo "${codigo}" ja existe.` });
+                detalhes.push({
+                  line: row.line,
+                  status: "ignorado",
+                  message: `Codigo "${codigo}" ja existe.`,
+                });
                 continue;
               }
 
@@ -66,30 +85,47 @@ export async function importarProdutosFlexivel(
               let categoriaId: string | null = null;
               if (row.categoria && row.categoria !== "Sem categoria") {
                 const cat = await tx.categoria.upsert({
-                  where: { nome: row.categoria },
-                  create: { nome: row.categoria },
+                  where: {
+                    empresaId_nome: {
+                      empresaId: empresaId(),
+                      nome: row.categoria,
+                    },
+                  },
+                  create: { empresaId: empresaId(), nome: row.categoria },
                   update: {},
                 });
                 categoriaId = cat.id;
               }
 
-              const markupPercent = markupFromPrecos(row.precoCusto, row.precoVenda);
+              const markupPercent = markupFromPrecos(
+                row.precoCusto,
+                row.precoVenda,
+              );
               await tx.produto.update({
                 where: { id: existingId },
                 data: {
+                  empresaId: empresaId(),
                   nome: row.nome,
                   precoCusto: row.precoCusto,
                   precoVenda: row.precoVenda,
                   markupPercent,
                   unidadeMedida: row.unidadeMedida,
-                  ...(row.estoqueAtualMapped ? { estoqueAtual: row.estoqueAtual } : {}),
-                  ...(row.estoqueMinimoMapped ? { estoqueMinimo: row.estoqueMinimo } : {}),
+                  ...(row.estoqueAtualMapped
+                    ? { estoqueAtual: row.estoqueAtual }
+                    : {}),
+                  ...(row.estoqueMinimoMapped
+                    ? { estoqueMinimo: row.estoqueMinimo }
+                    : {}),
                   ...(categoriaId ? { categoriaId } : {}),
                   ativo: row.ativo,
                 },
               });
               atualizados += 1;
-              detalhes.push({ line: row.line, status: "atualizado", message: `"${codigo}" atualizado.` });
+              detalhes.push({
+                line: row.line,
+                status: "atualizado",
+                message: `"${codigo}" atualizado.`,
+              });
               continue;
             }
 
@@ -97,16 +133,25 @@ export async function importarProdutosFlexivel(
             let categoriaId: string | null = null;
             if (row.categoria && row.categoria !== "Sem categoria") {
               const cat = await tx.categoria.upsert({
-                where: { nome: row.categoria },
-                create: { nome: row.categoria },
+                where: {
+                  empresaId_nome: {
+                    empresaId: empresaId(),
+                    nome: row.categoria,
+                  },
+                },
+                create: { empresaId: empresaId(), nome: row.categoria },
                 update: {},
               });
               categoriaId = cat.id;
             }
 
-            const markupPercent = markupFromPrecos(row.precoCusto, row.precoVenda);
+            const markupPercent = markupFromPrecos(
+              row.precoCusto,
+              row.precoVenda,
+            );
             await tx.produto.create({
               data: {
+                empresaId: empresaId(),
                 codigo,
                 nome: row.nome,
                 precoCusto: row.precoCusto,
@@ -121,11 +166,19 @@ export async function importarProdutosFlexivel(
             });
             codeToId.set(codigo, "new");
             criados += 1;
-            detalhes.push({ line: row.line, status: "criado", message: `"${codigo}" — ${row.nome}` });
+            detalhes.push({
+              line: row.line,
+              status: "criado",
+              message: `"${codigo}" — ${row.nome}`,
+            });
           } catch (e) {
             if (isPrismaUnique(e)) {
               ignorados += 1;
-              detalhes.push({ line: row.line, status: "ignorado", message: `Codigo duplicado (concorrencia).` });
+              detalhes.push({
+                line: row.line,
+                status: "ignorado",
+                message: `Codigo duplicado (concorrencia).`,
+              });
             } else {
               erros += 1;
               detalhes.push({
@@ -137,7 +190,7 @@ export async function importarProdutosFlexivel(
           }
         }
       },
-      { maxWait: 30_000, timeout: 120_000 }
+      { maxWait: 30_000, timeout: 120_000 },
     );
   }
 

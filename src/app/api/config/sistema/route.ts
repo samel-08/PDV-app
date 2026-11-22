@@ -1,3 +1,7 @@
+import { AccessError } from "@/lib/tenant-context";
+import { empresaId } from "@/lib/tenant-context";
+import { tenantRoute, ADMINS } from "@/lib/tenant-route";
+import { CARGOS } from "@/lib/tenant-context";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
@@ -43,46 +47,55 @@ function dadosEmpresa(body: ConfigSistemaBody) {
   for (const campo of camposEmpresa) {
     if (Object.prototype.hasOwnProperty.call(body, campo.key)) {
       const valor = limparTexto(body[campo.key], campo.max);
-      data[campo.key] = campo.key === "estado" && valor ? valor.toUpperCase() : valor;
+      data[campo.key] =
+        campo.key === "estado" && valor ? valor.toUpperCase() : valor;
     }
   }
   return data;
 }
 
-export async function GET() {
-  let config = await prisma.configSistema.findUnique({ where: { id: "singleton" } });
-  if (!config) {
-    config = await prisma.configSistema.create({
-      data: { id: "singleton", permitirEstoqueNegativo: false },
+export async function GET(req: Request) {
+  return tenantRoute(req, CARGOS, async () => {
+    const config = await prisma.configSistema.findUniqueOrThrow({
+      where: { empresaId: empresaId() },
     });
-  }
-  return NextResponse.json(config);
+    return NextResponse.json(config);
+  });
 }
 
 export async function PATCH(req: Request) {
-  try {
-    const body = (await req.json()) as ConfigSistemaBody;
-    const empresa = dadosEmpresa(body);
-    const estoque =
-      typeof body.permitirEstoqueNegativo === "boolean"
-        ? { permitirEstoqueNegativo: body.permitirEstoqueNegativo }
-        : {};
+  return tenantRoute(req, ADMINS, async () => {
+    try {
+      const body = (await req.json()) as ConfigSistemaBody;
+      const empresa = dadosEmpresa(body);
+      const estoque =
+        typeof body.permitirEstoqueNegativo === "boolean"
+          ? { permitirEstoqueNegativo: body.permitirEstoqueNegativo }
+          : {};
 
-    const config = await prisma.configSistema.upsert({
-      where: { id: "singleton" },
-      create: {
-        id: "singleton",
-        permitirEstoqueNegativo: body.permitirEstoqueNegativo ?? false,
-        ...empresa,
-      },
-      update: {
-        ...estoque,
-        ...empresa,
-      },
-    });
-    return NextResponse.json(config);
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : "Erro ao salvar configuração.";
-    return NextResponse.json({ error: msg }, { status: 400 });
-  }
+      const config = await prisma.configSistema.upsert({
+        where: { empresaId: empresaId() },
+        create: {
+          empresaId: empresaId(),
+
+          permitirEstoqueNegativo: body.permitirEstoqueNegativo ?? false,
+          ...empresa,
+        },
+        update: {
+          ...estoque,
+          ...empresa,
+        },
+      });
+      return NextResponse.json(config);
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : "Erro ao salvar configuração.";
+      return NextResponse.json(
+        { error: msg },
+        { status: e instanceof AccessError ? e.status : 400 },
+      );
+    }
+  });
 }
+
+export const runtime = "nodejs";

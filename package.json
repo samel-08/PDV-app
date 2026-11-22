@@ -10,7 +10,7 @@
     "start:local": "next start -H 127.0.0.1 -p 3000",
     "lint": "next lint",
     "postinstall": "prisma generate",
-    "db:push": "prisma db push",
+    "db:push": "node --env-file=.env --import tsx scripts/database.ts init",
     "db:seed": "prisma db seed",
     "demo:setup": "node scripts/demo.mjs setup",
     "demo:dev": "node scripts/demo.mjs dev",
@@ -18,7 +18,12 @@
     "demo:start": "node scripts/demo.mjs start",
     "test:pagamentos": "tsx --test tests/pagamentos.test.ts",
     "lab:tenancy": "tsx scripts/tenant-lab/run.ts",
-    "test:tenancy": "tsx --test tests/tenant-lab/migration.test.ts"
+    "test:tenancy": "tsx --test tests/tenant-lab/migration.test.ts",
+    "db:init": "node --env-file=.env --import tsx scripts/database.ts init",
+    "db:migrate:legacy": "node --env-file=.env --import tsx scripts/database.ts migrate",
+    "account:create": "node --env-file=.env --import tsx scripts/account-create.ts",
+    "test:operational": "tsx --test tests/operational/migration.test.ts tests/operational/scope.test.ts tests/operational/auth.test.ts",
+    "test:e2e": "node scripts/run-e2e.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.7.0",
@@ -36,6 +41,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.15.17",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
@@ -50,5 +56,8 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }

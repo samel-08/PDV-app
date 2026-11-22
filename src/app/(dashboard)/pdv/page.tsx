@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import { newRequestKey } from "@/lib/client-key";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
@@ -21,11 +22,25 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useSession } from "@/components/session-gate";
 import { Modal } from "@/components/modal";
 import { useToast } from "@/contexts/toast-context";
 import type { ConfigBalancaDTO } from "@/lib/balanca-types";
-import { formatBRL, formatDateTime, formatQty, labelUnidadeMedida } from "@/lib/format";
+import {
+  formatBRL,
+  formatDateTime,
+  formatQty,
+  labelUnidadeMedida,
+} from "@/lib/format";
 import { calcularPagamentos } from "@/lib/pagamentos";
 import { openVendaPrint } from "@/lib/print-venda";
 
@@ -68,7 +83,11 @@ type VendaFull = {
 type Forma = "DINHEIRO" | "PIX" | "CREDITO" | "DEBITO" | "OUTROS";
 type PagamentoLine = { formaPagamento: Forma; valor: number };
 type SearchFlash = "ok" | "err" | null;
-type CodigoScanResult = { tipo: "produto" | "balanca"; produto: Produto; quantidade: number };
+type CodigoScanResult = {
+  tipo: "produto" | "balanca";
+  produto: Produto;
+  quantidade: number;
+};
 
 function useDebounced<T>(value: T, delay: number) {
   const [v, setV] = useState(value);
@@ -96,7 +115,10 @@ function parseQtyInput(raw: string): number {
 }
 
 function formatValorInput(v: number) {
-  return v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function parseBR(raw: string): number {
@@ -151,13 +173,23 @@ function CheckoutMetricCard({
         : "text-zinc-950 dark:text-zinc-50";
 
   return (
-    <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-inner [@media(max-height:820px)]:rounded-xl [@media(max-height:820px)]:px-3 [@media(max-height:820px)]:py-2 ${toneClass}`}>
-      <div className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-full border sm:flex [@media(max-height:820px)]:hidden ${iconClass}`}>
+    <div
+      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-inner [@media(max-height:820px)]:rounded-xl [@media(max-height:820px)]:px-3 [@media(max-height:820px)]:py-2 ${toneClass}`}
+    >
+      <div
+        className={`hidden h-11 w-11 shrink-0 items-center justify-center rounded-full border sm:flex [@media(max-height:820px)]:hidden ${iconClass}`}
+      >
         {icon}
       </div>
       <div className="min-w-0">
-        <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 sm:text-sm [@media(max-height:820px)]:text-xs">{label}</div>
-        <div className={`mt-0.5 text-xl font-extrabold tabular-nums tracking-tight sm:text-2xl [@media(max-height:820px)]:text-lg ${valueClass}`}>{value}</div>
+        <div className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 sm:text-sm [@media(max-height:820px)]:text-xs">
+          {label}
+        </div>
+        <div
+          className={`mt-0.5 text-xl font-extrabold tabular-nums tracking-tight sm:text-2xl [@media(max-height:820px)]:text-lg ${valueClass}`}
+        >
+          {value}
+        </div>
       </div>
     </div>
   );
@@ -172,9 +204,17 @@ function PixMark() {
         className="h-9 w-9 drop-shadow-[0_0_10px_rgba(34,211,238,0.35)] [@media(max-height:820px)]:h-7 [@media(max-height:820px)]:w-7"
       >
         <path fill="currentColor" d="M24 7 34 17 24 27 14 17z" opacity="0.9" />
-        <path fill="currentColor" d="M24 21 34 31 24 41 14 31z" opacity="0.75" />
+        <path
+          fill="currentColor"
+          d="M24 21 34 31 24 41 14 31z"
+          opacity="0.75"
+        />
         <path fill="currentColor" d="M7 24 17 14 27 24 17 34z" opacity="0.65" />
-        <path fill="currentColor" d="M21 24 31 14 41 24 31 34z" opacity="0.65" />
+        <path
+          fill="currentColor"
+          d="M21 24 31 14 41 24 31 34z"
+          opacity="0.65"
+        />
       </svg>
     </span>
   );
@@ -222,7 +262,9 @@ const CartRow = memo(function CartRow({
     <tr className="border-b border-zinc-100 dark:border-zinc-800/80">
       <td className="py-2.5 pr-2 align-middle">
         <div className="truncate text-sm font-semibold">{line.nome}</div>
-        <div className="mt-0.5 truncate font-mono text-[11px] text-zinc-500">{line.codigo}</div>
+        <div className="mt-0.5 truncate font-mono text-[11px] text-zinc-500">
+          {line.codigo}
+        </div>
       </td>
       <td className="py-2.5 align-middle">
         <div className="inline-flex items-center rounded-lg border border-zinc-200 dark:border-zinc-700">
@@ -272,6 +314,7 @@ const CartRow = memo(function CartRow({
 });
 
 export default function PdvPage() {
+  const canManageCash = useSession()?.cargo !== "CAIXA";
   const qc = useQueryClient();
   const toast = useToast();
   const [q, setQ] = useState("");
@@ -326,7 +369,12 @@ export default function PdvPage() {
       return r.json() as Promise<{
         aberto: boolean;
         sugestaoAbertura: null | { saldo: number; fechadoEm: string | null };
-        sessao: null | { id: string; saldo: number; valorInicial: number; abertoEm: string };
+        sessao: null | {
+          id: string;
+          saldo: number;
+          valorInicial: number;
+          abertoEm: string;
+        };
       }>;
     },
     refetchInterval: 90_000,
@@ -355,11 +403,20 @@ export default function PdvPage() {
   const processarCodigo = useMutation({
     mutationFn: async (codigoBarras: string) => {
       const codigo = codigoBarras.trim();
-      const produtoResp = await fetch(`/api/produtos/busca?codigo=${encodeURIComponent(codigo)}`);
+      const produtoResp = await fetch(
+        `/api/produtos/busca?codigo=${encodeURIComponent(codigo)}`,
+      );
       if (produtoResp.ok) {
-        const produtoJson = await produtoResp.json().catch(() => ({ data: [] }));
+        const produtoJson = await produtoResp
+          .json()
+          .catch(() => ({ data: [] }));
         const produto = (produtoJson.data as Produto[] | undefined)?.[0];
-        if (produto) return { tipo: "produto", produto, quantidade: 1 } satisfies CodigoScanResult;
+        if (produto)
+          return {
+            tipo: "produto",
+            produto,
+            quantidade: 1,
+          } satisfies CodigoScanResult;
       }
 
       const r = await fetch("/api/pdv/interpretar-codigo", {
@@ -372,7 +429,10 @@ export default function PdvPage() {
         throw new Error("Produto não encontrado para este código de barras");
       }
       if (!r.ok) throw new Error(j.error ?? "Código inválido.");
-      return { tipo: "balanca", ...(j as { produto: Produto; quantidade: number }) } satisfies CodigoScanResult;
+      return {
+        tipo: "balanca",
+        ...(j as { produto: Produto; quantidade: number }),
+      } satisfies CodigoScanResult;
     },
     onSuccess: (data, codigoBarras) => {
       lastInterpreted.current = codigoBarras;
@@ -382,10 +442,16 @@ export default function PdvPage() {
       flashSearch("ok");
       focusSearch();
       if (data.tipo === "produto") {
-        toast.push("success", `${data.produto.nome} adicionado pelo codigo de barras.`);
+        toast.push(
+          "success",
+          `${data.produto.nome} adicionado pelo codigo de barras.`,
+        );
         return;
       }
-      toast.push("success", `${data.produto.nome} (${formatQty(data.quantidade)}) adicionado pela balança.`);
+      toast.push(
+        "success",
+        `${data.produto.nome} (${formatQty(data.quantidade)}) adicionado pela balança.`,
+      );
     },
     onError: (e: Error, codigoBarras) => {
       lastInterpreted.current = codigoBarras;
@@ -412,15 +478,22 @@ export default function PdvPage() {
   }, [dq, balancaCfg.data, caixa.data?.aberto, processarCodigo]);
 
   const total = useMemo(
-    () => Math.round(cart.reduce((a, l) => a + Math.round(l.precoVenda * l.quantidade * 100) / 100, 0) * 100) / 100,
-    [cart]
+    () =>
+      Math.round(
+        cart.reduce(
+          (a, l) => a + Math.round(l.precoVenda * l.quantidade * 100) / 100,
+          0,
+        ) * 100,
+      ) / 100,
+    [cart],
   );
 
   const { totalPago, restante, excedenteValido, troco, suficiente } = useMemo(
     () => calcularPagamentos(total, pagamentos),
     [total, pagamentos],
   );
-  const canFinalize = total > 0 && pagamentos.length > 0 && suficiente && excedenteValido;
+  const canFinalize =
+    total > 0 && pagamentos.length > 0 && suficiente && excedenteValido;
 
   const showNotFound =
     dq.length >= 2 &&
@@ -473,7 +546,11 @@ export default function PdvPage() {
     const qn = parseQtyInput(raw);
     if (!Number.isFinite(qn)) return;
     const clamped = Math.max(MANUAL_QTY_MIN, Math.round(qn * 1000) / 1000);
-    setCart((prev) => prev.map((l) => (l.produtoId === produtoId ? { ...l, quantidade: clamped } : l)));
+    setCart((prev) =>
+      prev.map((l) =>
+        l.produtoId === produtoId ? { ...l, quantidade: clamped } : l,
+      ),
+    );
   }
 
   function inc(produtoId: string, deltaDir: 1 | -1) {
@@ -487,7 +564,7 @@ export default function PdvPage() {
           const next = Math.round((currentQty + deltaDir * step) * 1000) / 1000;
           return { ...l, quantidade: Math.max(minQty, next) };
         })
-        .filter((l) => l.quantidade > 0)
+        .filter((l) => l.quantidade > 0),
     );
   }
 
@@ -508,7 +585,10 @@ export default function PdvPage() {
 
   function addPagamentoRestante(forma: Forma) {
     if (restante <= 0) return;
-    setPagamentos((prev) => [...prev, { formaPagamento: forma, valor: restante }]);
+    setPagamentos((prev) => [
+      ...prev,
+      { formaPagamento: forma, valor: restante },
+    ]);
     setAddValor("");
   }
 
@@ -516,13 +596,33 @@ export default function PdvPage() {
     setPagamentos((prev) => prev.filter((_, i) => i !== idx));
   }
 
+  const finalizationKey = useRef<string | null>(null);
+  const finalizationBody = useRef("");
   const finalize = useMutation({
     mutationFn: async () => {
+      const currentBody = JSON.stringify({
+        itens: cart.map((l) => ({
+          produtoId: l.produtoId,
+          quantidade: l.quantidade,
+        })),
+        pagamentos,
+      });
+      if (finalizationBody.current !== currentBody) {
+        finalizationKey.current = null;
+        finalizationBody.current = currentBody;
+      }
+      finalizationKey.current ??= newRequestKey();
       const r = await fetch("/api/vendas", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": finalizationKey.current,
+        },
         body: JSON.stringify({
-          itens: cart.map((l) => ({ produtoId: l.produtoId, quantidade: l.quantidade })),
+          itens: cart.map((l) => ({
+            produtoId: l.produtoId,
+            quantidade: l.quantidade,
+          })),
           pagamentos,
         }),
       });
@@ -538,6 +638,7 @@ export default function PdvPage() {
       setAddValor("");
       setLastAddedName(null);
       setReceipt(venda);
+      finalizationKey.current = null;
       focusSearch();
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["dashboard"] }),
@@ -668,7 +769,17 @@ export default function PdvPage() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [caixaAberto, cart.length, checkoutOpen, receipt, canFinalize, finalize, toast, focusSearch, q]);
+  }, [
+    caixaAberto,
+    cart.length,
+    checkoutOpen,
+    receipt,
+    canFinalize,
+    finalize,
+    toast,
+    focusSearch,
+    q,
+  ]);
 
   function closeCheckout() {
     setCheckoutOpen(false);
@@ -676,7 +787,9 @@ export default function PdvPage() {
   }
 
   function openCaixaAbertura() {
-    setValorInicialCaixa(formatValorInput(caixa.data?.sugestaoAbertura?.saldo ?? 0));
+    setValorInicialCaixa(
+      formatValorInput(caixa.data?.sugestaoAbertura?.saldo ?? 0),
+    );
     setAbrirCaixaOpen(true);
   }
 
@@ -709,14 +822,21 @@ export default function PdvPage() {
           <div className="text-xs font-semibold text-zinc-500">Caixa</div>
           <div className="mt-1 font-semibold">
             {caixaAberto ? (
-              <span className="text-emerald-700 dark:text-emerald-300">Aberto</span>
+              <span className="text-emerald-700 dark:text-emerald-300">
+                Aberto
+              </span>
             ) : (
-              <span className="text-amber-700 dark:text-amber-300">Fechado</span>
+              <span className="text-amber-700 dark:text-amber-300">
+                Fechado
+              </span>
             )}
           </div>
           {caixa.data?.sessao ? (
             <div className="mt-1 text-xs text-zinc-600 dark:text-zinc-400">
-              Saldo: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{formatBRL(caixa.data.sessao.saldo)}</span>
+              Saldo:{" "}
+              <span className="font-semibold text-zinc-900 dark:text-zinc-100">
+                {formatBRL(caixa.data.sessao.saldo)}
+              </span>
             </div>
           ) : null}
         </div>
@@ -724,7 +844,15 @@ export default function PdvPage() {
 
       {!caixaAberto ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
-          Abra o caixa pelo botão <span className="font-semibold">Caixa fechado</span> no canto inferior esquerdo antes de registrar vendas.
+          {canManageCash ? (
+            <>
+              Abra o caixa pelo botão{" "}
+              <span className="font-semibold">Caixa fechado</span> no canto
+              inferior esquerdo antes de registrar vendas.
+            </>
+          ) : (
+            "Aguarde um administrador ou gerente abrir o caixa para registrar vendas."
+          )}
         </div>
       ) : null}
 
@@ -732,10 +860,16 @@ export default function PdvPage() {
         <div className="space-y-3">
           <div className="rounded-2xl border-2 border-emerald-200/80 bg-gradient-to-b from-emerald-50/60 to-white p-4 shadow-sm dark:border-emerald-900/50 dark:from-emerald-950/20 dark:to-zinc-950">
             <div className="flex items-center justify-between gap-2">
-              <label htmlFor="pdv-busca-produto" className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
+              <label
+                htmlFor="pdv-busca-produto"
+                className="text-sm font-bold text-emerald-900 dark:text-emerald-100"
+              >
                 Buscar produto
               </label>
-              <Search className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+              <Search
+                className="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+                aria-hidden
+              />
             </div>
             <div className="relative mt-2">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-600/70" />
@@ -748,7 +882,8 @@ export default function PdvPage() {
                   if (e.key !== "Enter") return;
                   e.preventDefault();
                   const codigo = q.trim();
-                  if (!codigo || !caixaAberto || processarCodigo.isPending) return;
+                  if (!codigo || !caixaAberto || processarCodigo.isPending)
+                    return;
                   lastInterpreted.current = codigo;
                   processarCodigo.mutate(codigo);
                 }}
@@ -763,7 +898,8 @@ export default function PdvPage() {
                 className="mt-2 rounded-lg border border-emerald-300 bg-emerald-100/90 px-3 py-2 text-sm font-medium text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-100"
                 role="status"
               >
-                Último adicionado: <span className="font-semibold">{lastAddedName}</span>
+                Último adicionado:{" "}
+                <span className="font-semibold">{lastAddedName}</span>
               </div>
             ) : null}
 
@@ -788,7 +924,9 @@ export default function PdvPage() {
                     : `Código numérico (${dq.length} dígitos). Aguarde o reconhecimento automático.`}
                 </div>
               ) : busca.isLoading ? (
-                <div className="text-sm text-zinc-600 dark:text-zinc-400">Buscando...</div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400">
+                  Buscando...
+                </div>
               ) : showNotFound ? null : (
                 busca.data?.map((p) => (
                   <button
@@ -799,8 +937,12 @@ export default function PdvPage() {
                     className="flex w-full items-center justify-between gap-3 rounded-xl border border-zinc-200 px-3 py-2.5 text-left hover:border-emerald-300 hover:bg-emerald-50/50 disabled:opacity-50 dark:border-zinc-800 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/20"
                   >
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold">{p.nome}</div>
-                      <div className="mt-0.5 font-mono text-xs text-zinc-500">{p.codigo}</div>
+                      <div className="truncate text-sm font-semibold">
+                        {p.nome}
+                      </div>
+                      <div className="mt-0.5 font-mono text-xs text-zinc-500">
+                        {p.codigo}
+                      </div>
                     </div>
                     <div className="shrink-0 rounded-lg bg-emerald-100 px-2.5 py-1.5 text-right dark:bg-emerald-950/50">
                       <div className="text-base font-bold tabular-nums text-emerald-800 dark:text-emerald-200">
@@ -819,7 +961,9 @@ export default function PdvPage() {
 
         <div
           className={`rounded-2xl border bg-white p-4 dark:bg-zinc-950 ${
-            hasCartItems ? "border-emerald-300 shadow-md dark:border-emerald-800" : "border-zinc-200 dark:border-zinc-800"
+            hasCartItems
+              ? "border-emerald-300 shadow-md dark:border-emerald-800"
+              : "border-zinc-200 dark:border-zinc-800"
           }`}
         >
           <div className="flex items-center justify-between gap-3">
@@ -841,14 +985,22 @@ export default function PdvPage() {
                   <tr className="border-b border-zinc-200 text-left text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:border-zinc-700">
                     <th className="pb-2 pr-2">Produto</th>
                     <th className="pb-2 text-center">Qtd</th>
-                    <th className="hidden pb-2 text-right sm:table-cell">Unitário</th>
+                    <th className="hidden pb-2 text-right sm:table-cell">
+                      Unitário
+                    </th>
                     <th className="pb-2 text-right">Total</th>
                     <th className="pb-2 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
                   {cart.map((l) => (
-                    <CartRow key={l.produtoId} line={l} onInc={inc} onSetQty={setQty} onRemove={remove} />
+                    <CartRow
+                      key={l.produtoId}
+                      line={l}
+                      onInc={inc}
+                      onSetQty={setQty}
+                      onRemove={remove}
+                    />
                   ))}
                 </tbody>
               </table>
@@ -867,7 +1019,11 @@ export default function PdvPage() {
             <button
               type="button"
               disabled={!caixaAberto || !hasCartItems}
-              onClick={() => { setPagamentos([]); setAddValor(""); setCheckoutOpen(true); }}
+              onClick={() => {
+                setPagamentos([]);
+                setAddValor("");
+                setCheckoutOpen(true);
+              }}
               className={
                 hasCartItems
                   ? "w-full rounded-2xl bg-emerald-600 px-4 py-4 text-lg font-bold text-white shadow-lg ring-2 ring-emerald-400/80 hover:bg-emerald-700 disabled:opacity-50"
@@ -883,7 +1039,8 @@ export default function PdvPage() {
             </button>
             {hasCartItems ? (
               <p className="text-center text-[11px] text-zinc-500 dark:text-zinc-400">
-                <ShortcutKey>F9</ShortcutKey> cancela · <ShortcutKey>Esc</ShortcutKey> limpa a busca
+                <ShortcutKey>F9</ShortcutKey> cancela ·{" "}
+                <ShortcutKey>Esc</ShortcutKey> limpa a busca
               </p>
             ) : null}
           </div>
@@ -917,11 +1074,15 @@ export default function PdvPage() {
               onClick={() => finalize.mutate()}
               className="inline-flex w-full items-center justify-center gap-3 rounded-2xl border border-emerald-500/70 bg-emerald-600 px-5 py-3 text-lg font-extrabold text-white shadow-lg shadow-emerald-200/60 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-200 disabled:text-zinc-500 dark:border-emerald-400/70 dark:shadow-emerald-950/40 dark:disabled:border-zinc-700 dark:disabled:bg-zinc-800 dark:disabled:text-zinc-500 sm:w-[26rem] [@media(max-height:820px)]:rounded-xl [@media(max-height:820px)]:py-2.5 [@media(max-height:820px)]:text-base"
             >
-              {finalize.isPending ? "Processando..." : (
+              {finalize.isPending ? (
+                "Processando..."
+              ) : (
                 <>
                   <CheckCircle2 className="h-7 w-7 [@media(max-height:820px)]:h-5 [@media(max-height:820px)]:w-5" />
                   Confirmar
-                  <span className="rounded-lg bg-emerald-700/20 px-3 py-1 text-base font-black text-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-100 [@media(max-height:820px)]:px-2.5 [@media(max-height:820px)]:py-0.5 [@media(max-height:820px)]:text-sm">F6</span>
+                  <span className="rounded-lg bg-emerald-700/20 px-3 py-1 text-base font-black text-emerald-50 dark:bg-emerald-950/50 dark:text-emerald-100 [@media(max-height:820px)]:px-2.5 [@media(max-height:820px)]:py-0.5 [@media(max-height:820px)]:text-sm">
+                    F6
+                  </span>
                 </>
               )}
             </button>
@@ -935,22 +1096,40 @@ export default function PdvPage() {
               <div className="hidden h-14 w-14 items-center justify-center rounded-full border border-emerald-300 bg-emerald-100 text-emerald-600 dark:border-emerald-400/40 dark:bg-emerald-400/10 dark:text-emerald-300 sm:flex [@media(max-height:820px)]:hidden">
                 <Tag className="h-8 w-8" />
               </div>
-              <span className="text-xl font-extrabold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 [@media(max-height:820px)]:text-lg">Total</span>
+              <span className="text-xl font-extrabold uppercase tracking-wide text-emerald-700 dark:text-emerald-300 [@media(max-height:820px)]:text-lg">
+                Total
+              </span>
             </div>
-            <span className="text-3xl font-black tabular-nums tracking-tight text-emerald-800 dark:text-emerald-100 sm:text-5xl [@media(max-height:820px)]:text-4xl">{formatBRL(total)}</span>
+            <span className="text-3xl font-black tabular-nums tracking-tight text-emerald-800 dark:text-emerald-100 sm:text-5xl [@media(max-height:820px)]:text-4xl">
+              {formatBRL(total)}
+            </span>
           </div>
 
           {/* Payments added */}
           {pagamentos.length > 0 && (
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Pagamentos adicionados</div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Pagamentos adicionados
+              </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 {pagamentos.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/60">
-                    <span className="text-sm font-semibold">{labelPagamento(p.formaPagamento)}</span>
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900/60"
+                  >
+                    <span className="text-sm font-semibold">
+                      {labelPagamento(p.formaPagamento)}
+                    </span>
                     <div className="flex items-center gap-3">
-                      <span className="font-bold tabular-nums">{formatBRL(p.valor)}</span>
-                      <button type="button" onClick={() => removePagamento(i)} className="text-red-400 transition hover:text-red-300" aria-label="Remover pagamento">
+                      <span className="font-bold tabular-nums">
+                        {formatBRL(p.valor)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removePagamento(i)}
+                        className="text-red-400 transition hover:text-red-300"
+                        aria-label="Remover pagamento"
+                      >
                         <X className="h-4 w-4" />
                       </button>
                     </div>
@@ -962,14 +1141,23 @@ export default function PdvPage() {
 
           {/* Summary */}
           <div className="grid gap-3 lg:grid-cols-3 [@media(max-height:820px)]:gap-2">
-            <CheckoutMetricCard label="Pago" value={formatBRL(totalPago)} icon={<Wallet className="h-7 w-7" />} />
+            <CheckoutMetricCard
+              label="Pago"
+              value={formatBRL(totalPago)}
+              icon={<Wallet className="h-7 w-7" />}
+            />
             <CheckoutMetricCard
               label="Falta"
               value={formatBRL(restante)}
               icon={<AlertCircle className="h-7 w-7" />}
               tone={restante > 0 ? "warning" : "success"}
             />
-            <CheckoutMetricCard label="Troco" value={formatBRL(troco)} icon={<Repeat2 className="h-7 w-7" />} tone="success" />
+            <CheckoutMetricCard
+              label="Troco"
+              value={formatBRL(troco)}
+              icon={<Repeat2 className="h-7 w-7" />}
+              tone="success"
+            />
           </div>
 
           {/* Add payment */}
@@ -982,18 +1170,20 @@ export default function PdvPage() {
               <div className="grid gap-3 lg:grid-cols-[minmax(13rem,20rem)_1fr_minmax(12rem,16rem)] [@media(max-height:820px)]:gap-2">
                 <div className="relative">
                   <CreditCard className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-zinc-500 dark:text-zinc-200 [@media(max-height:820px)]:h-5 [@media(max-height:820px)]:w-5" />
-                <select
-                  value={addForma}
-                  onChange={(e) => setAddForma(e.target.value as Forma)}
-                  className="h-14 w-full appearance-none rounded-2xl border border-zinc-300 bg-white px-12 text-base font-semibold text-zinc-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 dark:border-zinc-700 dark:bg-zinc-950/80 dark:text-zinc-50 dark:focus:border-emerald-400 sm:text-lg [@media(max-height:820px)]:h-10 [@media(max-height:820px)]:rounded-xl [@media(max-height:820px)]:text-sm"
-                >
-                  <option value="DINHEIRO">Dinheiro</option>
-                  <option value="PIX">Pix</option>
+                  <select
+                    value={addForma}
+                    onChange={(e) => setAddForma(e.target.value as Forma)}
+                    className="h-14 w-full appearance-none rounded-2xl border border-zinc-300 bg-white px-12 text-base font-semibold text-zinc-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 dark:border-zinc-700 dark:bg-zinc-950/80 dark:text-zinc-50 dark:focus:border-emerald-400 sm:text-lg [@media(max-height:820px)]:h-10 [@media(max-height:820px)]:rounded-xl [@media(max-height:820px)]:text-sm"
+                  >
+                    <option value="DINHEIRO">Dinheiro</option>
+                    <option value="PIX">Pix</option>
                     <option value="CREDITO">Crédito</option>
                     <option value="DEBITO">Débito</option>
-                  <option value="OUTROS">Outros</option>
-                </select>
-                  <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-xl text-zinc-500 dark:text-zinc-300">v</span>
+                    <option value="OUTROS">Outros</option>
+                  </select>
+                  <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-xl text-zinc-500 dark:text-zinc-300">
+                    v
+                  </span>
                 </div>
                 <input
                   value={addValor}
@@ -1001,7 +1191,12 @@ export default function PdvPage() {
                   placeholder="Valor"
                   inputMode="decimal"
                   className="h-14 min-w-0 rounded-2xl border border-zinc-300 bg-white px-5 text-base font-semibold text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/15 dark:border-zinc-700 dark:bg-zinc-950/80 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-emerald-400 sm:text-lg [@media(max-height:820px)]:h-10 [@media(max-height:820px)]:rounded-xl [@media(max-height:820px)]:text-sm"
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPagamento(); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addPagamento();
+                    }
+                  }}
                 />
                 <button
                   type="button"
@@ -1018,7 +1213,9 @@ export default function PdvPage() {
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 [@media(max-height:820px)]:gap-2">
                   <QuickPaymentCard
                     label="Dinheiro"
-                    icon={<Banknote className="h-14 w-14 text-emerald-600 dark:text-emerald-300 [@media(max-height:820px)]:h-8 [@media(max-height:820px)]:w-8" />}
+                    icon={
+                      <Banknote className="h-14 w-14 text-emerald-600 dark:text-emerald-300 [@media(max-height:820px)]:h-8 [@media(max-height:820px)]:w-8" />
+                    }
                     colorClass="border-emerald-500/80 shadow-emerald-950/50 hover:border-emerald-400"
                     disabled={restante <= 0}
                     onClick={() => addPagamentoRestante("DINHEIRO")}
@@ -1032,14 +1229,18 @@ export default function PdvPage() {
                   />
                   <QuickPaymentCard
                     label="Débito"
-                    icon={<CreditCard className="h-14 w-14 text-sky-600 dark:text-sky-300 [@media(max-height:820px)]:h-8 [@media(max-height:820px)]:w-8" />}
+                    icon={
+                      <CreditCard className="h-14 w-14 text-sky-600 dark:text-sky-300 [@media(max-height:820px)]:h-8 [@media(max-height:820px)]:w-8" />
+                    }
                     colorClass="border-sky-500/80 shadow-sky-950/50 hover:border-sky-400"
                     disabled={restante <= 0}
                     onClick={() => addPagamentoRestante("DEBITO")}
                   />
                   <QuickPaymentCard
                     label="Crédito"
-                    icon={<CreditCard className="h-14 w-14 text-violet-600 dark:text-violet-300 [@media(max-height:820px)]:h-8 [@media(max-height:820px)]:w-8" />}
+                    icon={
+                      <CreditCard className="h-14 w-14 text-violet-600 dark:text-violet-300 [@media(max-height:820px)]:h-8 [@media(max-height:820px)]:w-8" />
+                    }
                     colorClass="border-violet-500/80 shadow-violet-950/50 hover:border-violet-400"
                     disabled={restante <= 0}
                     onClick={() => addPagamentoRestante("CREDITO")}
@@ -1052,7 +1253,8 @@ export default function PdvPage() {
           {/* Warning if overpaid without cash */}
           {!excedenteValido && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-              Pagamento excede o total mas não há dinheiro para troco. Ajuste os valores.
+              Pagamento excede o total mas não há dinheiro para troco. Ajuste os
+              valores.
             </div>
           )}
         </div>
@@ -1074,7 +1276,9 @@ export default function PdvPage() {
             </button>
             <button
               type="button"
-              onClick={() => { if (receipt) openVendaPrint(receipt.id); }}
+              onClick={() => {
+                if (receipt) openVendaPrint(receipt.id);
+              }}
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-white sm:w-auto"
             >
               <Printer className="h-4 w-4" />
@@ -1086,24 +1290,32 @@ export default function PdvPage() {
         {receipt ? (
           <div className="space-y-2 text-sm">
             <div className="text-xs text-zinc-500">Venda #{receipt.numero}</div>
-            <div className="text-xs text-zinc-500">{formatDateTime(receipt.createdAt)}</div>
+            <div className="text-xs text-zinc-500">
+              {formatDateTime(receipt.createdAt)}
+            </div>
             <div className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
               <div className="flex justify-between">
                 <span className="text-zinc-600 dark:text-zinc-400">Total</span>
-                <span className="font-semibold">{formatBRL(receipt.total)}</span>
+                <span className="font-semibold">
+                  {formatBRL(receipt.total)}
+                </span>
               </div>
               {receipt.pagamentos && receipt.pagamentos.length > 0 ? (
                 <div className="mt-2 space-y-1">
                   {receipt.pagamentos.map((p, i) => (
                     <div key={i} className="flex justify-between text-xs">
-                      <span className="text-zinc-600 dark:text-zinc-400">{labelPagamento(p.formaPagamento)}</span>
+                      <span className="text-zinc-600 dark:text-zinc-400">
+                        {labelPagamento(p.formaPagamento)}
+                      </span>
                       <span>{formatBRL(p.valor)}</span>
                     </div>
                   ))}
                 </div>
               ) : (
                 <div className="mt-2 flex justify-between text-xs">
-                  <span className="text-zinc-600 dark:text-zinc-400">Pagamento</span>
+                  <span className="text-zinc-600 dark:text-zinc-400">
+                    Pagamento
+                  </span>
                   <span>{labelPagamento(receipt.formaPagamento)}</span>
                 </div>
               )}
@@ -1115,7 +1327,8 @@ export default function PdvPage() {
               )}
             </div>
             <p className="text-xs text-zinc-500">
-              A impressão abre numa nova aba. Se o navegador bloquear pop-up, permita pop-ups para este site.
+              A impressão abre numa nova aba. Se o navegador bloquear pop-up,
+              permita pop-ups para este site.
             </p>
           </div>
         ) : null}
@@ -1123,14 +1336,20 @@ export default function PdvPage() {
 
       {/* Atalho flutuante — abrir/fechar caixa */}
       <div className="fixed bottom-4 left-4 z-40">
-        {caixaPanelOpen ? (
+        {caixaPanelOpen && canManageCash ? (
           <div className="mb-2 w-56 rounded-2xl border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-950">
-            <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Caixa</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Caixa
+            </div>
             <div className="mt-1 text-sm font-semibold">
               {caixaAberto ? (
-                <span className="text-emerald-700 dark:text-emerald-300">Aberto</span>
+                <span className="text-emerald-700 dark:text-emerald-300">
+                  Aberto
+                </span>
               ) : (
-                <span className="text-amber-700 dark:text-amber-300">Fechado</span>
+                <span className="text-amber-700 dark:text-amber-300">
+                  Fechado
+                </span>
               )}
             </div>
             {caixa.data?.sessao ? (
@@ -1175,6 +1394,12 @@ export default function PdvPage() {
         ) : null}
         <button
           type="button"
+          disabled={!canManageCash}
+          title={
+            canManageCash
+              ? "Gerenciar caixa"
+              : "Abertura e fechamento pelo gerente"
+          }
           onClick={() => setCaixaPanelOpen((v) => !v)}
           className={`inline-flex items-center gap-2 rounded-full border px-4 py-3 text-sm font-semibold shadow-lg transition hover:-translate-y-0.5 ${
             caixaAberto
@@ -1184,8 +1409,14 @@ export default function PdvPage() {
           aria-expanded={caixaPanelOpen}
           aria-label={caixaAberto ? "Opções do caixa aberto" : "Abrir caixa"}
         >
-          {caixaAberto ? <Unlock className="h-5 w-5" /> : <Lock className="h-5 w-5" />}
-          <span className="hidden sm:inline">{caixaAberto ? "Caixa aberto" : "Caixa fechado"}</span>
+          {caixaAberto ? (
+            <Unlock className="h-5 w-5" />
+          ) : (
+            <Lock className="h-5 w-5" />
+          )}
+          <span className="hidden sm:inline">
+            {caixaAberto ? "Caixa aberto" : "Caixa fechado"}
+          </span>
         </button>
       </div>
 
@@ -1217,10 +1448,14 @@ export default function PdvPage() {
           {caixa.data?.sugestaoAbertura ? (
             <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
               Saldo sugerido do último fechamento:{" "}
-              <span className="font-semibold">{formatBRL(caixa.data.sugestaoAbertura.saldo)}</span>
+              <span className="font-semibold">
+                {formatBRL(caixa.data.sugestaoAbertura.saldo)}
+              </span>
             </div>
           ) : null}
-          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Valor inicial no caixa (R$)</label>
+          <label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+            Valor inicial no caixa (R$)
+          </label>
           <input
             value={valorInicialCaixa}
             onChange={(e) => setValorInicialCaixa(e.target.value)}
@@ -1256,12 +1491,16 @@ export default function PdvPage() {
       >
         <div className="space-y-3">
           <p className="text-sm text-zinc-700 dark:text-zinc-300">
-            Ao fechar, você não poderá registrar novas vendas até abrir uma nova sessão.
+            Ao fechar, você não poderá registrar novas vendas até abrir uma nova
+            sessão.
             {caixa.data?.sessao ? (
               <>
                 {" "}
                 Saldo esperado:{" "}
-                <span className="font-semibold">{formatBRL(caixa.data.sessao.saldo)}</span>.
+                <span className="font-semibold">
+                  {formatBRL(caixa.data.sessao.saldo)}
+                </span>
+                .
               </>
             ) : null}
           </p>
