@@ -1,3 +1,4 @@
+import { calcularPagamentos } from "@/lib/pagamentos";
 import { prisma } from "@/lib/db";
 import { MOV_TIPO, getCaixaAberto } from "@/lib/caixa-service";
 import type { FormaPagamento } from "@/lib/validators";
@@ -93,27 +94,15 @@ export async function finalizarVenda(input: {
       });
     }
 
-    // Validate payments
-    const totalPago = Math.round(pagamentos.reduce((a, p) => a + p.valor, 0) * 100) / 100;
-    const valorDinheiro = Math.round(
-      pagamentos
-        .filter((p) => p.formaPagamento === "DINHEIRO")
-        .reduce((a, p) => a + p.valor, 0) * 100
-    ) / 100;
-
-    if (totalPago + 0.01 < total) {
+    const { totalPago, valorDinheiro, troco, suficiente, excedenteValido } =
+      calcularPagamentos(total, pagamentos);
+    if (!suficiente) {
       throw new Error(
         `Pagamento insuficiente. Total: R$ ${total.toFixed(2)}, Pago: R$ ${totalPago.toFixed(2)}.`
       );
     }
-
-    let troco = 0;
-    if (totalPago > total + 0.01) {
-      const excedente = Math.round((totalPago - total) * 100) / 100;
-      if (valorDinheiro + 0.01 < excedente) {
-        throw new Error("Pagamento excede o total e não há dinheiro para calcular troco.");
-      }
-      troco = excedente;
+    if (!excedenteValido) {
+      throw new Error("Pagamento excede o total e não há dinheiro para calcular troco.");
     }
 
     const last = await tx.venda.findFirst({

@@ -35,7 +35,8 @@ export const categoriaCreateSchema = z.object({
 
 export const pagamentoSchema = z.object({
   formaPagamento: z.enum(FORMAS_PAGAMENTO),
-  valor: z.coerce.number().positive("Valor do pagamento deve ser positivo."),
+  valor: z.coerce.number().finite().positive("Valor do pagamento deve ser positivo.")
+    .multipleOf(0.01, "Informe o pagamento com no máximo duas casas decimais."),
 });
 
 export const vendaCreateSchema = z.object({

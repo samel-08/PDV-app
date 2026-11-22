@@ -20,6 +20,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const nav = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/produtos", label: "Produtos", icon: Package },
+  { href: "/estoque", label: "Estoque", icon: Package },
   { href: "/importar-tabela", label: "Importar tabela", icon: FileSpreadsheet },
   { href: "/pdv", label: "PDV / Caixa", icon: ShoppingCart },
   { href: "/caixa", label: "Controle de caixa", icon: Banknote },

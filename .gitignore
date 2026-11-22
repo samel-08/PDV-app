@@ -73,6 +73,8 @@ Thumbs.db
 
 # Sensitive files (auto-detected)
 .env
-.env.example
 node_modules
 
+
+# Bancos locais de demonstração e arquivos auxiliares
+/prisma/demo.db*

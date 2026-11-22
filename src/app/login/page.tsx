@@ -92,8 +92,7 @@ function LoginForm() {
             </button>
 
             <p className="text-center text-xs text-zinc-500">
-              Em desenvolvimento, a senha padrão é <span className="font-mono font-semibold">admin</span> se{" "}
-              <span className="font-mono">PDV_LOGIN_PASSWORD</span> não estiver no .env.
+              Entre com as credenciais fornecidas pelo responsável pelo sistema.
             </p>
           </form>
         </div>
