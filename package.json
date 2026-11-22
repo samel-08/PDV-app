@@ -16,7 +16,9 @@
     "demo:dev": "node scripts/demo.mjs dev",
     "demo:build": "node scripts/demo.mjs build",
     "demo:start": "node scripts/demo.mjs start",
-    "test:pagamentos": "tsx --test tests/pagamentos.test.ts"
+    "test:pagamentos": "tsx --test tests/pagamentos.test.ts",
+    "lab:tenancy": "tsx scripts/tenant-lab/run.ts",
+    "test:tenancy": "tsx --test tests/tenant-lab/migration.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.7.0",
