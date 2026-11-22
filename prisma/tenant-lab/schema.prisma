@@ -1,0 +1,392 @@
+// EXPERIMENTAL: apenas para o ensaio; não é o schema operacional da aplicação.
+generator client {
+  provider = "prisma-client-js"
+  output = "../../work/tenant-lab/generated-target"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("TENANT_LAB_DATABASE_URL")
+}
+
+model Categoria {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id        String    @id @default(cuid())
+  nome      String
+  createdAt DateTime  @default(now())
+  produtos  Produto[]
+  @@unique([empresaId, id])
+  @@unique([empresaId, nome])
+
+}
+
+model Produto {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id         String       @id @default(cuid())
+  codigo     String
+  nome       String
+  precoCusto Float
+  precoVenda Float
+  /// Markup sobre custo em % (ex.: 30 = 30%). Recalculado ao salvar com base nos preços.
+  markupPercent Float     @default(0)
+  /// KG | UN | CX | G
+  unidadeMedida String    @default("UN")
+  estoqueAtual  Float     @default(0)
+  estoqueMinimo Float     @default(0)
+  categoriaId  String?
+  categoria    Categoria? @relation(fields: [empresaId, categoriaId], references: [empresaId, id], onDelete: Restrict)
+  ativo        Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  itens        ItensVenda[]
+  movimentacoesEstoque MovimentacaoEstoque[]
+
+  @@index([ativo])
+  @@index([categoriaId])
+  @@index([nome])
+  @@unique([empresaId, id])
+  @@unique([empresaId, codigo])
+
+}
+
+/// Configuração por empresa para leitura de etiquetas de balança (experimental).
+model ConfigBalanca {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id String @id @default(cuid())
+
+  tamanhoCodigoBarras    Int    @default(13)
+  /// Dígitos iniciais que identificam etiqueta da balança (ex.: "2"). Vazio = não valida prefixo.
+  prefixoIdentificacao   String @default("")
+  /// Posições 1-based (inclusive) do código do produto dentro do código de barras
+  codigoProdutoInicio    Int    @default(1)
+  codigoProdutoFim       Int    @default(6)
+  /// Posições 1-based (inclusive) do trecho numérico de peso ou valor
+  pesoValorInicio        Int    @default(7)
+  pesoValorFim           Int    @default(12)
+  /// PESO | VALOR
+  contemTipo             String @default("PESO")
+  /// Casas decimais do trecho (máx. 3 para peso, 2 para valor — validado na API)
+  casasDecimais          Int    @default(3)
+
+  updatedAt DateTime @updatedAt
+  @@unique([empresaId])
+
+}
+
+/// Configuração geral por empresa (experimental).
+model ConfigSistema {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id                       String  @id @default(cuid())
+  permitirEstoqueNegativo Boolean @default(false)
+  nomeFantasia            String?
+  razaoSocial             String?
+  cnpj                    String?
+  inscricaoEstadual       String?
+  telefoneWhatsApp        String?
+  enderecoCompleto        String?
+  cidade                  String?
+  estado                  String?
+  cep                     String?
+  mensagemRodapeCupom     String?
+  observacaoCupom         String?
+  @@unique([empresaId])
+
+}
+
+/// Sessão de caixa (abertura até fechamento)
+model CaixaSessao {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id            String              @id @default(cuid())
+  abertoEm      DateTime            @default(now())
+  fechadoEm     DateTime?
+  valorInicial  Float
+  saldoFinalEsperado  Float?
+  saldoFinalInformado Float?
+  diferenca           Float?
+  status        String              @default("ABERTO") // ABERTO | FECHADO
+  vendas        Venda[]
+  movimentacoes MovimentacaoCaixa[]
+  @@unique([empresaId, id])
+
+}
+
+model Venda {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id             String   @id @default(cuid())
+  numero         Int
+  total          Float
+  formaPagamento String   // DINHEIRO | PIX | CREDITO | DEBITO | MULTIPLO
+  valorRecebido  Float
+  troco          Float
+  status         String   @default("CONCLUIDA") // CONCLUIDA | CANCELADA
+  createdAt      DateTime @default(now())
+
+  caixaSessaoId String
+  caixaSessao   CaixaSessao @relation(fields: [empresaId, caixaSessaoId], references: [empresaId, id], onDelete: Restrict)
+
+  itens       ItensVenda[]
+  pagamentos  PagamentoVenda[]
+  movimentosCaixa MovimentacaoCaixa[]
+
+  @@index([createdAt])
+  @@index([caixaSessaoId, createdAt])
+  @@index([status])
+  @@unique([empresaId, id])
+  @@unique([empresaId, numero])
+
+}
+
+model ItensVenda {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id                 String  @id @default(cuid())
+  quantidade         Float
+  precoUnitario      Float
+  precoCustoSnapshot Float
+  subtotal           Float
+
+  vendaId String
+  venda   Venda   @relation(fields: [empresaId, vendaId], references: [empresaId, id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [empresaId, produtoId], references: [empresaId, id], onDelete: Restrict)
+
+  @@index([vendaId])
+  @@index([produtoId])
+  @@index([empresaId])
+
+}
+
+/// Pagamentos associados a uma venda (suporte a múltiplas formas)
+model PagamentoVenda {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id             String   @id @default(cuid())
+  formaPagamento String   // DINHEIRO | PIX | CREDITO | DEBITO | OUTROS
+  valor          Float
+  createdAt      DateTime @default(now())
+
+  vendaId String
+  venda   Venda @relation(fields: [empresaId, vendaId], references: [empresaId, id], onDelete: Cascade)
+
+  @@index([vendaId])
+  @@index([empresaId])
+
+}
+
+/// Tipos: ABERTURA | VENDA | SANGRIA | REFORCO | FECHAMENTO
+model MovimentacaoCaixa {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id                String   @id @default(cuid())
+  tipo              String
+  valor             Float
+  descricao         String?
+  referenciaVendaId String?
+  referenciaVenda Venda? @relation(fields: [empresaId, referenciaVendaId], references: [empresaId, id], onDelete: Restrict)
+  createdAt         DateTime @default(now())
+
+  caixaSessaoId String
+  caixaSessao   CaixaSessao @relation(fields: [empresaId, caixaSessaoId], references: [empresaId, id], onDelete: Cascade)
+
+  @@index([caixaSessaoId, createdAt])
+  @@index([empresaId])
+
+}
+
+/// Histórico de movimentação de estoque
+model MovimentacaoEstoque {
+  empresaId String
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id         String   @id @default(cuid())
+  tipo       String   // ENTRADA | SAIDA | AJUSTE | VENDA | CANCELAMENTO
+  quantidade Float
+  motivo     String
+  createdAt  DateTime @default(now())
+
+  produtoId String
+  produto   Produto @relation(fields: [empresaId, produtoId], references: [empresaId, id], onDelete: Cascade)
+
+  @@index([produtoId, createdAt])
+  @@index([empresaId])
+
+}
+
+/// Empresa cliente do SaaS. Nesta fase ainda nao isola os dados operacionais existentes.
+model Empresa {
+  id        String   @id @default(cuid())
+  nome      String
+  cnpj      String?  @unique
+  email     String?
+  telefone  String?
+  /// ATIVA | BLOQUEADA | CANCELADA
+  status    String   @default("ATIVA")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios  UsuarioEmpresa[]
+  licencas  LicencaEmpresa[]
+  auditLogs AuditLog[]
+  cobrancas CobrancaLicenca[]
+
+  @@index([status])
+  @@index([nome])
+  categorias Categoria[]
+  produtos Produto[]
+  configsBalanca ConfigBalanca[]
+  configsSistema ConfigSistema[]
+  caixas CaixaSessao[]
+  vendas Venda[]
+  itens ItensVenda[]
+  pagamentos PagamentoVenda[]
+  movimentosCaixa MovimentacaoCaixa[]
+  movimentosEstoque MovimentacaoEstoque[]
+
+}
+
+/// Usuario autenticavel do sistema. Substituira gradualmente o login por .env.
+model Usuario {
+  id         String   @id @default(cuid())
+  nome       String
+  email      String   @unique
+  senhaHash  String
+  /// ATIVO | BLOQUEADO
+  status     String   @default("ATIVO")
+  /// SUPER_ADMIN para acesso global; null para usuarios vinculados a empresas.
+  roleGlobal String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  empresas  UsuarioEmpresa[]
+  auditLogs AuditLog[]
+
+  @@index([status])
+  @@index([roleGlobal])
+}
+
+/// Vinculo entre usuario e empresa, com cargo dentro daquela empresa.
+model UsuarioEmpresa {
+  id        String   @id @default(cuid())
+  usuarioId String
+  empresaId String
+  /// ADMINISTRADOR | GERENTE | CAIXA
+  cargo     String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, empresaId])
+  @@index([empresaId, cargo])
+  @@index([usuarioId])
+}
+
+/// Plano comercial. Nesta fase existe apenas o Plano Completo.
+model Plano {
+  id          String   @id @default(cuid())
+  nome        String   @unique
+  descricao   String?
+  /// Duracao padrao para renovacao de licencas.
+  duracaoDias Int
+  ativo       Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  licencas  LicencaEmpresa[]
+  cobrancas CobrancaLicenca[]
+
+  @@index([ativo])
+}
+
+/// Licenca de uso por empresa. Controlara bloqueio operacional nas proximas fases.
+model LicencaEmpresa {
+  id             String   @id @default(cuid())
+  empresaId      String
+  planoId        String
+  /// ATIVA | VENCIDA | BLOQUEADA | CANCELADA
+  status         String   @default("ATIVA")
+  inicioEm       DateTime @default(now())
+  expiraEm       DateTime
+  motivoBloqueio String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  plano   Plano   @relation(fields: [planoId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId, status])
+  @@index([planoId])
+  @@index([expiraEm])
+}
+
+/// Log de auditoria para acoes importantes de usuarios e SUPER_ADMIN.
+model AuditLog {
+  id            String   @id @default(cuid())
+  empresaId     String?
+  usuarioId     String?
+  /// Papel/cargo de quem executou a acao: SUPER_ADMIN | ADMINISTRADOR | GERENTE | CAIXA
+  createdByRole String?
+  acao          String
+  entidade      String?
+  entidadeId    String?
+  detalhes      String?
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  empresa Empresa? @relation(fields: [empresaId], references: [id], onDelete: SetNull)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([empresaId, createdAt])
+  @@index([usuarioId, createdAt])
+  @@index([acao, createdAt])
+  @@index([createdByRole, createdAt])
+}
+
+/// Cobranca de licenca para futura integracao com Mercado Pago ou Asaas.
+model CobrancaLicenca {
+  id          String    @id @default(cuid())
+  empresaId   String
+  planoId     String
+  /// MERCADO_PAGO | ASAAS
+  provider    String
+  providerRef String?
+  valor       Decimal
+  /// PENDENTE | PAGO | CANCELADO | EXPIRADO
+  status      String    @default("PENDENTE")
+  vencimento  DateTime?
+  pagoEm      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  plano   Plano   @relation(fields: [planoId], references: [id], onDelete: Restrict)
+
+  @@unique([provider, providerRef])
+  @@index([empresaId, status])
+  @@index([planoId])
+}
+
+/// Evento bruto de webhook recebido de provedores de pagamento.
+model WebhookEvent {
+  id           String    @id @default(cuid())
+  provider     String
+  eventId      String
+  tipo         String?
+  payload      String
+  processado   Boolean   @default(false)
+  erro         String?
+  createdAt    DateTime  @default(now())
+  processadoEm DateTime?
+
+  @@unique([provider, eventId])
+  @@index([provider, processado])
+  @@index([createdAt])
+}

@@ -1,0 +1,10 @@
+{
+  "purpose": "Disposable SQLite rehearsal only; not a production migration.",
+  "legacySchemaSha256": "25307d6895824c4cf61fa6fd660c36369dea0cd9b89898ddb9430555866d4188",
+  "targetSchemaSha256": "5dd5430e640417177ef791ec53364d1dcd1a06affba4b0dfab7a8e92aa9656ed",
+  "migrations": {
+    "000_legacy.sql": "4544478fd93093187d81223d47d19151917ddf2fa4aec070f1ff22388b7062e4",
+    "001_expand.sql": "5ca5f59f53de96b09e5003d183e0e955781b8d960b5de2b0d090d89d067a3a0d",
+    "002_constraints.sql": "deb1c406c3a7094f8d663adb94dfe5eba75d261b4456de7f89fba9823f13fb16"
+  }
+}

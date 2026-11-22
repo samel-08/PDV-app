@@ -8,6 +8,12 @@ Este é um plano de implementação. Os requisitos abaixo ainda não estão impl
 
 A referência deste diagnóstico é a branch `codex/preparar-demonstracao-local`, após a preparação da demonstração. O inventário `arquitetura-atual.md` é histórico: seu trecho que diz que não existem tabelas SaaS está superado pelo schema atual.
 
+## Preparação executável disponível
+
+O [ensaio de migração](ensaio-migracao-multiempresa.md) implementa fixtures A/B, SQL versionado de expansão/restrições, preenchimento por empresa explícita, reconciliação dos dados e testes de erro/rollback em SQLite descartável. É o primeiro ensaio de M1 e parte do desenho de M2. Não altera o schema operacional nem conclui o isolamento das rotas.
+
+As tarefas abaixo continuam sendo os critérios da implementação operacional; o laboratório não as marca como entregues para produção.
+
 ## Ordem de importância
 
 | Ordem | Entrega | Condição para avançar |

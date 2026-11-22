@@ -78,3 +78,6 @@ node_modules
 
 # Bancos locais de demonstração e arquivos auxiliares
 /prisma/demo.db*
+
+# Bancos e artefatos descartáveis dos ensaios
+/work/

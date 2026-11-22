@@ -119,6 +119,17 @@ O próximo passo é substituir o login único por usuários vinculados a empresa
 
 Esse plano ainda não é uma funcionalidade pronta. A demonstração e as credenciais descritas acima continuam sendo de uma única instalação. O vínculo com empresa, e não apenas o nome do usuário, determinará os dados disponíveis na versão futura.
 
+### Ensaio de migração em banco descartável
+
+A preparação da migração já pode ser executada com duas lojas fictícias, sem usar o banco real:
+
+```bash
+npm run lab:tenancy
+npm run test:tenancy
+```
+
+O ensaio confere preservação dos dados, códigos iguais em empresas diferentes, rejeição de vínculos cruzados e rollback. Ele cria e remove seu próprio SQLite, ignorando `DATABASE_URL`. Isso **não ativa contas multiempresa no PDV**. Veja [o funcionamento e os limites do laboratório](docs/ensaio-migracao-multiempresa.md).
+
 ## Funcionalidades
 
 - Produtos, categorias, busca, preço de custo/venda e unidades de medida.
