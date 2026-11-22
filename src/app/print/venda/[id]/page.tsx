@@ -170,6 +170,7 @@ export default function PrintVendaPage() {
         {temDadosEmpresa ? <div className="cupom-linha" /> : null}
 
         <p className="cupom-titulo">COMPROVANTE DE VENDA</p>
+        <p className="cupom-meta">DOCUMENTO NÃO FISCAL</p>
         <p className="cupom-meta">
           Nº {data.numero} · {formatDateTime(data.createdAt)}
         </p>

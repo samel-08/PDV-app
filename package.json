@@ -11,7 +11,12 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "demo:setup": "node scripts/demo.mjs setup",
+    "demo:dev": "node scripts/demo.mjs dev",
+    "demo:build": "node scripts/demo.mjs build",
+    "demo:start": "node scripts/demo.mjs start",
+    "test:pagamentos": "tsx --test tests/pagamentos.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.7.0",

@@ -26,6 +26,7 @@ import { Modal } from "@/components/modal";
 import { useToast } from "@/contexts/toast-context";
 import type { ConfigBalancaDTO } from "@/lib/balanca-types";
 import { formatBRL, formatDateTime, formatQty, labelUnidadeMedida } from "@/lib/format";
+import { calcularPagamentos } from "@/lib/pagamentos";
 import { openVendaPrint } from "@/lib/print-venda";
 
 type Produto = {
@@ -411,38 +412,15 @@ export default function PdvPage() {
   }, [dq, balancaCfg.data, caixa.data?.aberto, processarCodigo]);
 
   const total = useMemo(
-    () => Math.round(cart.reduce((a, l) => a + l.precoVenda * l.quantidade, 0) * 100) / 100,
+    () => Math.round(cart.reduce((a, l) => a + Math.round(l.precoVenda * l.quantidade * 100) / 100, 0) * 100) / 100,
     [cart]
   );
 
-  const totalPago = useMemo(
-    () => Math.round(pagamentos.reduce((a, p) => a + p.valor, 0) * 100) / 100,
-    [pagamentos]
+  const { totalPago, restante, excedenteValido, troco, suficiente } = useMemo(
+    () => calcularPagamentos(total, pagamentos),
+    [total, pagamentos],
   );
-
-  const restante = useMemo(() => Math.max(0, Math.round((total - totalPago) * 100) / 100), [total, totalPago]);
-
-  const valorDinheiro = useMemo(
-    () =>
-      Math.round(
-        pagamentos
-          .filter((p) => p.formaPagamento === "DINHEIRO")
-          .reduce((a, p) => a + p.valor, 0) * 100
-      ) / 100,
-    [pagamentos]
-  );
-
-  const excedente = useMemo(() => Math.max(0, Math.round((totalPago - total) * 100) / 100), [totalPago, total]);
-  const excedenteValido = excedente <= 0.01 || valorDinheiro + 0.01 >= excedente;
-
-  const troco = useMemo(() => {
-    if (!excedenteValido || excedente <= 0.01) return 0;
-    return excedente;
-  }, [excedente, excedenteValido]);
-
-  const canFinalize = useMemo(() => {
-    return total > 0 && pagamentos.length > 0 && totalPago + 0.01 >= total && excedenteValido;
-  }, [total, pagamentos.length, totalPago, excedenteValido]);
+  const canFinalize = total > 0 && pagamentos.length > 0 && suficiente && excedenteValido;
 
   const showNotFound =
     dq.length >= 2 &&
@@ -1072,7 +1050,7 @@ export default function PdvPage() {
           ) : null}
 
           {/* Warning if overpaid without cash */}
-          {totalPago > total + 0.01 && !excedenteValido && (
+          {!excedenteValido && (
             <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
               Pagamento excede o total mas não há dinheiro para troco. Ajuste os valores.
             </div>
