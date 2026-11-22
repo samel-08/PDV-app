@@ -113,6 +113,12 @@ npm run build
 npm run start:local
 ```
 
+## Próximo desenvolvimento: isolamento por empresa
+
+O próximo passo é substituir o login único por usuários vinculados a empresas e isolar produtos, vendas, estoque, caixa, relatórios e importações. O [plano de evolução SaaS](docs/plano-evolucao-saas.md) registra a ordem de execução, os arquivos envolvidos, a migração dos dados e os testes com duas empresas.
+
+Esse plano ainda não é uma funcionalidade pronta. A demonstração e as credenciais descritas acima continuam sendo de uma única instalação. O vínculo com empresa, e não apenas o nome do usuário, determinará os dados disponíveis na versão futura.
+
 ## Funcionalidades
 
 - Produtos, categorias, busca, preço de custo/venda e unidades de medida.
