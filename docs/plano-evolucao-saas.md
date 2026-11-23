@@ -8,6 +8,44 @@ O [ensaio histórico](ensaio-migracao-multiempresa.md) permanece como preparaç�
 
 As etapas abaixo documentam o contrato técnico e a evolução planejada. A implementação atual não representa lançamento comercial: PostgreSQL, hospedagem, cobrança, emissão fiscal e validação dos equipamentos continuam pendentes. Bancos reais ainda precisam de ensaio e conferência específicos antes de aplicar a migração.
 
+## Conferência dos recursos solicitados
+
+Revisão do código em 23/11/2026, na branch `codex/multiempresa-operacional`, commit `81260f8`. Esta revisão apenas atualiza o planejamento; não implementa os itens pendentes. “Existe” indica presença no código, não homologação comercial ou validação em equipamentos reais.
+
+| Recurso | Estado | O que existe e o que falta |
+| --- | --- | --- |
+| Emissão fiscal integrada | Não implementado | O cupom informa **DOCUMENTO NÃO FISCAL**. Faltam integração fiscal, autorização, identificação do consumidor quando aplicável e os fluxos de consulta, cancelamento e contingência. A etapa fiscal do Paraná já está prevista neste plano. |
+| Várias formas de pagamento | Existe para registro da venda | Dinheiro, Pix, crédito, débito e outros, inclusive combinação de pagamentos e cálculo de troco. Pix/cartão são registros manuais: não há cobrança, confirmação ou conciliação por provedor integrado. |
+| Relatórios: mais vendidos, ticket médio e horários de pico | Parcial | Dashboard com ranking de produtos mais vendidos e ticket médio mensal/geral; relatório de caixa também calcula ticket médio. Falta relatório de vendas por hora e identificação dos horários de pico. |
+| Contas a pagar e a receber integradas às vendas | Não implementado | Existem caixa, sangria, reforço e pagamentos da venda; não existe módulo de títulos, vencimentos, parcelas e baixas. As tabelas de cobrança de licença são para a futura assinatura do PDV e não atendem ao financeiro do lojista. |
+| Cálculo de margem por produto | Parcial | Há preço de custo/venda, markup sobre custo, lucro unitário estimado na API de produtos e estimativa de lucro mensal no dashboard. Falta margem percentual sobre o preço de venda, exibida por produto. Markup e margem são cálculos diferentes. |
+| Dashboard no celular em tempo real | Parcial | Interface com layout responsivo e indicadores protegidos por cargo; consulta de vendas a cada **60 segundos** enquanto a tela está ativa. Faltam atualização entre dispositivos com latência definida e validação em celular. Acesso remoto também depende da implantação segura; `localhost` no notebook não publica o sistema na internet. |
+| Metas diárias por loja e vendedor, com acompanhamento visual | Não implementado | As vendas novas registram operador, mas não há cadastro de metas, apuração por loja/vendedor ou visualização do progresso. Operador de caixa não foi definido como vendedor. |
+| Multilojas e multiusuário, com dados centralizados | Parcial | Múltiplos usuários por empresa, cargos e isolamento das empresas no mesmo SQLite. Cada empresa representa uma loja e permite um caixa aberto; cada usuário operacional tem um único vínculo ativo. Faltam filiais de uma mesma organização, seleção autorizada de loja e visão consolidada do dono. |
+
+### Pendências adicionadas ou detalhadas na lista
+
+Os itens abaixo ficam **somente planejados**. Não substituem a ordem de fundação, produção, assinatura e fiscal já definida neste documento. Recursos ausentes não devem ser anunciados como disponíveis.
+
+- [ ] **Fiscal integrado (etapa já prevista):** definir provedor e requisitos aplicáveis ao Paraná com o contador; planejar homologação, certificado/credenciais, dados fiscais dos produtos, CPF/CNPJ do consumidor quando aplicável, autorização, XML/protocolo, documento auxiliar, cancelamento e contingência. Aceite: emissão autorizada e demais fluxos validados no ambiente apropriado antes de uso comercial.
+- [ ] **Pagamentos integrados (extensão opcional do registro atual):** decidir se o produto também fará cobrança Pix/cartão. Se entrar no escopo, definir provedor, confirmação pelo servidor, tratamento de eventos repetidos, estorno e conciliação. Aceite: uma venda não é considerada paga apenas por seleção da forma de pagamento ou exibição de QR Code. Separar essa integração da cobrança da assinatura do PDV.
+- [ ] **Horários de pico:** agrupar vendas concluídas por hora, com filtro de período e fuso da loja, mostrando quantidade e valor em gráfico/tabela. Aceite: totais conciliados com as vendas do período, sem misturar empresas e sem incluir vendas canceladas.
+- [ ] **Contas a pagar e receber:** definir títulos manuais, origem em venda a prazo/parcelada, vencimento, saldo, baixa parcial, atraso e vínculo com caixa. Definir como despesas e compras gerarão contas a pagar. Aceite: receber uma parcela não duplica faturamento nem entrada no caixa; cancelamento/estorno tem tratamento definido e histórico preservado.
+- [ ] **Margem por produto:** exibir margem bruta estimada `(preço de venda - custo) / preço de venda × 100`, mantendo o markup identificado separadamente. Tratar preço zero e custo ausente; documentar que taxas, impostos e despesas não estão incluídos sem modelagem própria. Aceite: custo R$ 60 e venda R$ 100 mostram markup de 66,67% e margem de 40%.
+- [ ] **Dashboard móvel e atualização entre dispositivos:** definir latência esperada e escolher consulta periódica ajustada ou eventos conforme a arquitetura de produção. Mostrar última atualização, tratar reconexão e validar leitura/navegação em celular com dados da loja autorizada. Aceite: venda concluída em outro dispositivo aparece dentro do prazo definido, sem recarga manual nem acesso a dados de outra empresa; acesso externo usa hospedagem com HTTPS.
+- [ ] **Metas diárias:** definir se o vendedor será o operador da venda ou uma identificação própria; cadastrar metas por loja e vendedor, apurar vendas concluídas no fuso da loja e exibir realizado, restante e percentual. Aceite: cancelamentos e dias sem vendas têm comportamento definido; vendas antigas sem operador não são atribuídas a alguém por suposição.
+- [ ] **Multilojas:** definir organização dona das filiais, vínculo/permissão por loja, seleção explícita do contexto e visão consolidada autorizada. Decidir compartilhamento de catálogo, estoque e preços antes de modelar. Aceite: o dono autorizado consulta suas filiais e o consolidado; funcionários acessam apenas suas lojas e empresas independentes continuam isoladas.
+- [ ] **Gestão de usuários pela interface:** complementar o provisionamento assistido atual com criação/convite, cargos, bloqueio e recuperação de acesso. Aceite: gestão restrita ao responsável autorizado, com revogação de sessões e sem senha universal.
+
+### Evidências desta conferência
+
+- Fiscal: `src/app/print/venda/[id]/page.tsx` identifica o documento como não fiscal; não foi encontrada integração SEFAZ/provedor no código da aplicação.
+- Pagamentos: `src/lib/validators.ts`, `src/lib/pagamentos.ts` e `src/lib/vendas-service.ts` definem formas, validações e persistência dos pagamentos.
+- Relatórios e atualização: `src/lib/dashboard-service.ts`, `src/lib/caixa-relatorio.ts` e `src/app/(dashboard)/page.tsx` calculam/exibem os indicadores e configuram a consulta a cada 60 segundos. A consulta de estoque baixo usa 120 segundos.
+- Preços: `src/lib/produto-precos.ts` calcula markup; `src/app/api/produtos/route.ts` retorna lucro unitário estimado; `src/app/(dashboard)/produtos/page.tsx` oferece custo, venda e markup.
+- Financeiro, metas e filiais: o inventário de modelos em `prisma/schema.prisma` não contém entidades desses módulos; não foram encontradas telas/serviços correspondentes. Movimentação de caixa não substitui contas a pagar/receber.
+- Usuários e empresas: `prisma/schema.prisma`, `src/app/api/auth/login/route.ts`, `src/lib/tenant-route.ts` e [multiempresa operacional](multiempresa-operacional.md) documentam o escopo e os limites atuais.
+
 ## Ordem de importância
 
 | Ordem | Entrega | Condição para avançar |
@@ -34,7 +72,9 @@ A demonstração foi compilada e teve venda, estoque, pagamento e fechamento ver
 - O cargo `SUPER_ADMIN` não concede acesso automático a todas as rotas do PDV. Rotas administrativas futuras serão separadas, explícitas e auditadas.
 - A demonstração continua em banco separado. Não haverá uma senha que mude uma instalação real para dados fictícios.
 
-## Evidência no código atual
+## Inventário histórico anterior à implementação multiempresa
+
+A tabela abaixo registra o diagnóstico que originou M1–M6; não descreve o estado atual. Para a implementação entregue, consulte [multiempresa operacional](multiempresa-operacional.md); para os recursos comerciais solicitados, consulte a conferência acima.
 
 | Área | Situação observada | Trabalho necessário |
 | --- | --- | --- |
