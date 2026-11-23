@@ -67,6 +67,7 @@ const privateCostKeys = new Set([
   "precoCustoSnapshot",
   "markupPercent",
   "lucroEstimado",
+  "margemPercent",
 ]);
 function redactCosts(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactCosts);

@@ -23,7 +23,8 @@
     "db:migrate:legacy": "node --env-file=.env --import tsx scripts/database.ts migrate",
     "account:create": "node --env-file=.env --import tsx scripts/account-create.ts",
     "test:operational": "tsx --test tests/operational/migration.test.ts tests/operational/scope.test.ts tests/operational/auth.test.ts",
-    "test:e2e": "node scripts/run-e2e.mjs"
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "test:indicadores": "tsx --test tests/indicadores.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.7.0",

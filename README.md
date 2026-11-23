@@ -10,6 +10,14 @@ O primeiro escopo é **uma loja por empresa, um caixa aberto por empresa e um v�
 
 A implementação atual usa SQLite. Migração e testes de PostgreSQL, hospedagem, cobrança, emissão fiscal e operação sem internet com sincronização continuam etapas futuras. O comprovante é **não fiscal**. Pix e cartão são registrados manualmente como formas de pagamento, sem cobrança pelo provedor.
 
+## Indicadores de gestão
+
+- **Margem bruta por produto:** coluna na lista e prévia no formulário, separada do markup. Custo R$ 60 e venda R$ 100 resultam em margem de 40%. Venda abaixo do custo mostra valor negativo. Custo/venda não positivos mostram margem indisponível; taxas, impostos e despesas não estão incluídos.
+- **Horários de pico:** seção do dashboard com filtro de datas (até 93 dias), quantidade e valor das vendas concluídas em cada hora, incluindo empates no pico. O relatório usa o fuso de São Paulo, respeita a empresa autenticada e permite consulta apenas a administrador/gerente. Atualiza a cada 60 segundos enquanto a tela está ativa.
+- Não é necessário migrar o banco para esses indicadores. Os demais recursos pendentes continuam no [plano de evolução](docs/plano-evolucao-saas.md).
+
+Verifique os cálculos com `npm run test:indicadores`. Os testes de integração e leitura móvel fazem parte de `npm run test:e2e` (requer build e navegador Playwright).
+
 ## Requisitos
 
 - **Node.js 22.12 ou superior** e npm.

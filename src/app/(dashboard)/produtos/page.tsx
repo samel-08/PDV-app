@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
 import { useToast } from "@/contexts/toast-context";
 import { formatBRL, labelUnidadeMedida } from "@/lib/format";
+import { margemFromPrecos } from "@/lib/produto-precos";
 import type { UnidadeMedida } from "@/lib/validators";
 
 type Categoria = { id: string; nome: string };
@@ -24,6 +25,7 @@ type Produto = {
   categoria: Categoria | null;
   ativo: boolean;
   lucroEstimado?: number;
+  margemPercent?: number | null;
 };
 
 type ListResponse = {
@@ -323,7 +325,7 @@ export default function ProdutosPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Produtos</h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Cadastro, estoque, markup e preços.
+            Cadastro, estoque, markup e margem bruta. Margem estimada sem taxas, impostos ou despesas. Custo e venda devem ser maiores que zero.
           </p>
         </div>
       </div>
@@ -339,6 +341,7 @@ export default function ProdutosPage() {
                 <th className="px-3 py-3">Nome</th>
                 <th className="px-3 py-3">Categoria</th>
                 <th className="px-3 py-3">Venda</th>
+                <th className="px-3 py-3">Margem bruta</th>
                 <th className="px-3 py-3">Estoque</th>
                 <th className="px-3 py-3">Status</th>
                 <th className="px-3 py-3 text-right">Ações</th>
@@ -346,9 +349,9 @@ export default function ProdutosPage() {
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {query.isError ? (
-                <tr><td className="px-4 py-6 text-red-700 dark:text-red-300" colSpan={7}>Não foi possível carregar a lista.</td></tr>
+                <tr><td className="px-4 py-6 text-red-700 dark:text-red-300" colSpan={8}>Não foi possível carregar a lista.</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td className="px-4 py-10 text-zinc-600 dark:text-zinc-400" colSpan={7}>Nenhum produto encontrado.</td></tr>
+                <tr><td className="px-4 py-10 text-zinc-600 dark:text-zinc-400" colSpan={8}>Nenhum produto encontrado.</td></tr>
               ) : (
                 rows.map((p) => {
                   const estoqueBaixo = p.estoqueMinimo > 0 && p.estoqueAtual <= p.estoqueMinimo;
@@ -358,6 +361,7 @@ export default function ProdutosPage() {
                       <td className="px-3 py-3 font-medium">{p.nome}</td>
                       <td className="px-3 py-3 text-xs text-zinc-600 dark:text-zinc-400">{p.categoria?.nome ?? "—"}</td>
                       <td className="px-3 py-3 whitespace-nowrap">{formatBRL(p.precoVenda)}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">{p.margemPercent == null ? "—" : `${formatPct(p.margemPercent)}%`}</td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-1">
                           <span className={`tabular-nums ${estoqueBaixo ? "font-semibold text-amber-700 dark:text-amber-300" : ""}`}>
@@ -457,7 +461,8 @@ export default function ProdutosPage() {
               <div><label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Preço de custo (R$)</label><input value={precoCusto} onChange={(e) => { const v = e.target.value; setPrecoCusto(v); const c = parseBR(v); const m = parseBR(markupStr); if (c > 0 && Number.isFinite(m)) { setPrecoVenda(String(roundMoney(c * (1 + m / 100))).replace(".", ",")); } }} inputMode="decimal" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-950" /></div>
               <div><label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Markup sobre o custo (%)</label><input value={markupStr} onChange={(e) => { setMarkupStr(e.target.value); const c = parseBR(precoCusto); const m = parseBR(e.target.value); if (c > 0 && Number.isFinite(m)) { setPrecoVenda(String(roundMoney(c * (1 + m / 100))).replace(".", ",")); } }} inputMode="decimal" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-950" /><p className="mt-1 text-xs text-zinc-500">Altere o markup para recalcular o preço de venda, ou ajuste o preço abaixo.</p></div>
               <div><label className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Preço de venda (R$)</label><input value={precoVenda} onChange={(e) => { setPrecoVenda(e.target.value); atualizarMarkupAPartirDaVenda(e.target.value); }} inputMode="decimal" className="mt-1 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm dark:border-zinc-800 dark:bg-zinc-950" /></div>
-              <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">Lucro estimado: <span className="font-semibold">{formatBRL(Math.max(0, roundMoney(parseBR(precoVenda) - parseBR(precoCusto))))}</span></div>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-300">Lucro bruto unitário estimado: <span className="font-semibold">{formatBRL(roundMoney(parseBR(precoVenda) - parseBR(precoCusto)))}</span></div>
+              <div className="rounded-xl border border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">Margem bruta: <strong>{margemFromPrecos(parseBR(precoCusto), parseBR(precoVenda)) == null ? "Informe custo e venda maiores que zero" : `${formatPct(margemFromPrecos(parseBR(precoCusto), parseBR(precoVenda))!)}%`}</strong><p className="mt-1 text-zinc-500">Sobre o preço de venda, sem taxas, impostos ou despesas. Valores negativos indicam prejuízo bruto.</p></div>
             </>
           ) : (
             <>

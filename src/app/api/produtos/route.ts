@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { produtoCreateSchema } from "@/lib/validators";
-import { markupFromPrecos } from "@/lib/produto-precos";
+import { markupFromPrecos, margemFromPrecos } from "@/lib/produto-precos";
 
 export async function GET(req: Request) {
   return tenantRoute(req, CARGOS, async () => {
@@ -46,6 +46,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       data: rows.map((p) => ({
         ...p,
+        margemPercent: margemFromPrecos(p.precoCusto, p.precoVenda),
         lucroEstimado: Math.round((p.precoVenda - p.precoCusto) * 100) / 100,
       })),
       page,
