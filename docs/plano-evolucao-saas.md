@@ -1,18 +1,51 @@
 # Plano de evolução do PDV Comércio
 
-## Prioridade e estado deste documento
+## Estado da implementação
 
-**Próxima prioridade: separar os dados das empresas e substituir o login único por usuários vinculados a uma empresa.** Essa fundação vem antes de cobrar assinaturas de vários lojistas na mesma aplicação.
+A primeira implementação operacional em SQLite está descrita em [multiempresa operacional](multiempresa-operacional.md): banco por empresa, login individual, escopo nas operações e testes A/B no navegador. A demonstração também usa empresa e usuário próprios, preservando seu banco fictício separado.
 
-Este é um plano de implementação. Os requisitos abaixo ainda não estão implementados. A demonstração continua sendo uma instalação de uma única loja, com banco fictício separado pelos comandos `demo:*`.
+O [ensaio histórico](ensaio-migracao-multiempresa.md) permanece como preparação reproduzível e usa um snapshot próprio do schema antigo. O inventário `arquitetura-atual.md` é histórico, anterior a esta implementação.
 
-A referência deste diagnóstico é a branch `codex/preparar-demonstracao-local`, após a preparação da demonstração. O inventário `arquitetura-atual.md` é histórico: seu trecho que diz que não existem tabelas SaaS está superado pelo schema atual.
+As etapas abaixo documentam o contrato técnico e a evolução planejada. A implementação atual não representa lançamento comercial: PostgreSQL, hospedagem, cobrança, emissão fiscal e validação dos equipamentos continuam pendentes. Bancos reais ainda precisam de ensaio e conferência específicos antes de aplicar a migração.
 
-## Preparação executável disponível
+## Conferência dos recursos solicitados
 
-O [ensaio de migração](ensaio-migracao-multiempresa.md) implementa fixtures A/B, SQL versionado de expansão/restrições, preenchimento por empresa explícita, reconciliação dos dados e testes de erro/rollback em SQLite descartável. É o primeiro ensaio de M1 e parte do desenho de M2. Não altera o schema operacional nem conclui o isolamento das rotas.
+Revisão do código em 23/11/2026, na branch `codex/multiempresa-operacional`, commit `81260f8`. A revisão inicial apenas atualizou o planejamento. A entrega posterior de indicadores implementou margem bruta por produto e relatório de horários de pico, conforme descrito abaixo. “Existe” indica presença no código, não homologação comercial ou validação em equipamentos reais.
 
-As tarefas abaixo continuam sendo os critérios da implementação operacional; o laboratório não as marca como entregues para produção.
+| Recurso | Estado | O que existe e o que falta |
+| --- | --- | --- |
+| Emissão fiscal integrada | Não implementado | O cupom informa **DOCUMENTO NÃO FISCAL**. Faltam integração fiscal, autorização, identificação do consumidor quando aplicável e os fluxos de consulta, cancelamento e contingência. A etapa fiscal do Paraná já está prevista neste plano. |
+| Várias formas de pagamento | Existe para registro da venda | Dinheiro, Pix, crédito, débito e outros, inclusive combinação de pagamentos e cálculo de troco. Pix/cartão são registros manuais: não há cobrança, confirmação ou conciliação por provedor integrado. |
+| Relatórios: mais vendidos, ticket médio e horários de pico | Implementado no escopo simples | Dashboard com ranking de produtos mais vendidos e ticket médio mensal/geral; relatório de caixa também calcula ticket médio. Relatório de horários de pico no dashboard, com filtro de 1 a 93 dias, quantidade e valor por hora no fuso `America/Sao_Paulo`; inclui empates e ignora canceladas. |
+| Contas a pagar e a receber integradas às vendas | Não implementado | Existem caixa, sangria, reforço e pagamentos da venda; não existe módulo de títulos, vencimentos, parcelas e baixas. As tabelas de cobrança de licença são para a futura assinatura do PDV e não atendem ao financeiro do lojista. |
+| Cálculo de margem por produto | Implementado como estimativa bruta | Há preço de custo/venda, markup sobre custo, lucro unitário estimado na API de produtos e estimativa de lucro mensal no dashboard. A lista e o formulário de produto exibem margem percentual sobre a venda, inclusive negativa. Custo ou venda não positivos deixam a margem indisponível; taxas, impostos e despesas não entram no cálculo. Markup e margem são cálculos diferentes. |
+| Dashboard no celular em tempo real | Parcial | Interface com layout responsivo e indicadores protegidos por cargo; consulta de vendas a cada **60 segundos** enquanto a tela está ativa. Faltam atualização entre dispositivos com latência definida e validação em celular. Acesso remoto também depende da implantação segura; `localhost` no notebook não publica o sistema na internet. |
+| Metas diárias por loja e vendedor, com acompanhamento visual | Não implementado | As vendas novas registram operador, mas não há cadastro de metas, apuração por loja/vendedor ou visualização do progresso. Operador de caixa não foi definido como vendedor. |
+| Multilojas e multiusuário, com dados centralizados | Parcial | Múltiplos usuários por empresa, cargos e isolamento das empresas no mesmo SQLite. Cada empresa representa uma loja e permite um caixa aberto; cada usuário operacional tem um único vínculo ativo. Faltam filiais de uma mesma organização, seleção autorizada de loja e visão consolidada do dono. |
+
+### Pendências adicionadas ou detalhadas na lista
+
+Os itens desmarcados abaixo ficam **somente planejados**; os marcados foram implementados na entrega de indicadores. Não substituem a ordem de fundação, produção, assinatura e fiscal já definida neste documento. Recursos ausentes não devem ser anunciados como disponíveis.
+
+- [ ] **Fiscal integrado (etapa já prevista):** definir provedor e requisitos aplicáveis ao Paraná com o contador; planejar homologação, certificado/credenciais, dados fiscais dos produtos, CPF/CNPJ do consumidor quando aplicável, autorização, XML/protocolo, documento auxiliar, cancelamento e contingência. Aceite: emissão autorizada e demais fluxos validados no ambiente apropriado antes de uso comercial.
+- [ ] **Pagamentos integrados (extensão opcional do registro atual):** decidir se o produto também fará cobrança Pix/cartão. Se entrar no escopo, definir provedor, confirmação pelo servidor, tratamento de eventos repetidos, estorno e conciliação. Aceite: uma venda não é considerada paga apenas por seleção da forma de pagamento ou exibição de QR Code. Separar essa integração da cobrança da assinatura do PDV.
+- [x] **Horários de pico:** agrupar vendas concluídas por hora, com filtro de período e fuso da loja, mostrando quantidade e valor em gráfico/tabela. Aceite: totais conciliados com as vendas do período, sem misturar empresas e sem incluir vendas canceladas.
+- [ ] **Contas a pagar e receber:** definir títulos manuais, origem em venda a prazo/parcelada, vencimento, saldo, baixa parcial, atraso e vínculo com caixa. Definir como despesas e compras gerarão contas a pagar. Aceite: receber uma parcela não duplica faturamento nem entrada no caixa; cancelamento/estorno tem tratamento definido e histórico preservado.
+- [x] **Margem por produto:** exibir margem bruta estimada `(preço de venda - custo) / preço de venda × 100`, mantendo o markup identificado separadamente. Exibir indisponível para custo/venda não positivos ou inválidos; documentar que taxas, impostos e despesas não estão incluídos sem modelagem própria. Aceite: custo R$ 60 e venda R$ 100 mostram markup de 66,67% e margem de 40%.
+- [ ] **Dashboard móvel e atualização entre dispositivos:** definir latência esperada e escolher consulta periódica ajustada ou eventos conforme a arquitetura de produção. Mostrar última atualização, tratar reconexão e validar leitura/navegação em celular com dados da loja autorizada. Aceite: venda concluída em outro dispositivo aparece dentro do prazo definido, sem recarga manual nem acesso a dados de outra empresa; acesso externo usa hospedagem com HTTPS.
+- [ ] **Metas diárias:** definir se o vendedor será o operador da venda ou uma identificação própria; cadastrar metas por loja e vendedor, apurar vendas concluídas no fuso da loja e exibir realizado, restante e percentual. Aceite: cancelamentos e dias sem vendas têm comportamento definido; vendas antigas sem operador não são atribuídas a alguém por suposição.
+- [ ] **Multilojas:** definir organização dona das filiais, vínculo/permissão por loja, seleção explícita do contexto e visão consolidada autorizada. Decidir compartilhamento de catálogo, estoque e preços antes de modelar. Aceite: o dono autorizado consulta suas filiais e o consolidado; funcionários acessam apenas suas lojas e empresas independentes continuam isoladas.
+- [ ] **Gestão de usuários pela interface:** complementar o provisionamento assistido atual com criação/convite, cargos, bloqueio e recuperação de acesso. Aceite: gestão restrita ao responsável autorizado, com revogação de sessões e sem senha universal.
+
+### Evidências desta conferência
+
+- Fiscal: `src/app/print/venda/[id]/page.tsx` identifica o documento como não fiscal; não foi encontrada integração SEFAZ/provedor no código da aplicação.
+- Pagamentos: `src/lib/validators.ts`, `src/lib/pagamentos.ts` e `src/lib/vendas-service.ts` definem formas, validações e persistência dos pagamentos.
+- Relatórios e atualização: `src/lib/dashboard-service.ts`, `src/lib/caixa-relatorio.ts` e `src/app/(dashboard)/page.tsx` calculam/exibem os indicadores e configuram a consulta a cada 60 segundos. A consulta de estoque baixo usa 120 segundos.
+- Preços: `src/lib/produto-precos.ts` calcula markup; `src/app/api/produtos/route.ts` retorna lucro unitário estimado; `src/app/(dashboard)/produtos/page.tsx` oferece custo, venda e markup.
+- Horários de pico: `src/lib/horarios-pico.ts`, `src/app/api/dashboard/horarios/route.ts` e `src/components/horarios-pico.tsx`; testes em `tests/indicadores.test.ts` e `tests/browser/indicadores.spec.ts`. A API exige administrador/gerente e usa o banco com escopo de empresa.
+- Financeiro, metas e filiais: o inventário de modelos em `prisma/schema.prisma` não contém entidades desses módulos; não foram encontradas telas/serviços correspondentes. Movimentação de caixa não substitui contas a pagar/receber.
+- Usuários e empresas: `prisma/schema.prisma`, `src/app/api/auth/login/route.ts`, `src/lib/tenant-route.ts` e [multiempresa operacional](multiempresa-operacional.md) documentam o escopo e os limites atuais.
 
 ## Ordem de importância
 
@@ -40,7 +73,9 @@ A demonstração foi compilada e teve venda, estoque, pagamento e fechamento ver
 - O cargo `SUPER_ADMIN` não concede acesso automático a todas as rotas do PDV. Rotas administrativas futuras serão separadas, explícitas e auditadas.
 - A demonstração continua em banco separado. Não haverá uma senha que mude uma instalação real para dados fictícios.
 
-## Evidência no código atual
+## Inventário histórico anterior à implementação multiempresa
+
+A tabela abaixo registra o diagnóstico que originou M1–M6; não descreve o estado atual. Para a implementação entregue, consulte [multiempresa operacional](multiempresa-operacional.md); para os recursos comerciais solicitados, consulte a conferência acima.
 
 | Área | Situação observada | Trabalho necessário |
 | --- | --- | --- |
@@ -80,49 +115,49 @@ Cada etapa deve resultar em alteração pequena e verificável. Etapas incomplet
 
 ### M1 — Preparar migração e fixtures
 
-- [ ] Criar duas empresas fictícias A e B com produtos de mesmo código, categorias de mesmo nome e usuários diferentes.
-- [ ] Registrar contagens e totais do banco de origem e preparar cópia para ensaio, sem dados reais em commits.
-- [ ] Definir migrações versionadas. O `db:push` continua uma facilidade local, não um procedimento de atualização de produção.
-- [ ] Definir como converter o banco existente: seus dados pertencem a uma empresa identificada explicitamente pelo responsável pela migração.
+- [x] Criar duas empresas fictícias A e B com produtos de mesmo código, categorias de mesmo nome e usuários diferentes.
+- [x] Registrar contagens e totais do banco de origem e preparar cópia para ensaio, sem dados reais em commits.
+- [x] Definir migrações versionadas. O `db:push` continua uma facilidade local, não um procedimento de atualização de produção.
+- [x] Definir como converter o banco existente: seus dados pertencem a uma empresa identificada explicitamente pelo responsável pela migração.
 - [ ] Definir a estratégia de PostgreSQL e valores monetários: migrar `Float` para centavos inteiros ou `Decimal`, com reconciliação e arredondamento documentados.
 
 **Aceite:** é possível reproduzir o cenário A/B em banco descartável e restaurar o backup de origem. Nenhum comando desta preparação altera o banco real automaticamente.
 
 ### M2 — Schema e preenchimento dos dados existentes
 
-- [ ] Adicionar campos e relações de empresa; adaptar índices e unicidades.
-- [ ] Fazer migração em fases: acrescentar campos, preencher registros antigos, validar, tornar obrigatórios e remover unicidades globais substituídas.
-- [ ] Migrar cada configuração global para a empresa de origem. Empresas novas recebem configurações próprias.
-- [ ] Atribuir itens, pagamentos e movimentações coerentemente com suas vendas, caixas e produtos.
-- [ ] Identificar e resolver referências órfãs ou inconsistentes antes de aplicar restrições.
-- [ ] Preservar números e totais históricos. Movimentações antigas podem manter ator desconhecido documentado; não inventar um usuário que teria feito a ação.
-- [ ] Adaptar seed normal e seed de demonstração ao novo schema, preservando o banco separado da demonstração.
+- [x] Adicionar campos e relações de empresa; adaptar índices e unicidades.
+- [x] Fazer migração em fases: acrescentar campos, preencher registros antigos, validar, tornar obrigatórios e remover unicidades globais substituídas.
+- [x] Migrar cada configuração global para a empresa de origem. Empresas novas recebem configurações próprias.
+- [x] Atribuir itens, pagamentos e movimentações coerentemente com suas vendas, caixas e produtos.
+- [x] Identificar e resolver referências órfãs ou inconsistentes antes de aplicar restrições.
+- [x] Preservar números e totais históricos. Movimentações antigas podem manter ator desconhecido documentado; não inventar um usuário que teria feito a ação.
+- [x] Adaptar seed normal e seed de demonstração ao novo schema, preservando o banco separado da demonstração.
 
 **Aceite:** nenhum dado operacional fica sem empresa; as duas empresas podem usar o mesmo código de produto; uma relação entre registros de A e B é rejeitada. Contagens e totais antigos reconciliam com a origem.
 
 ### M3 — Identidade e autorização no servidor
 
-- [ ] Reaproveitar o formato de hash `scrypt` existente no seed e implementar verificação segura; não comparar senha em texto com o banco.
-- [ ] Emitir JWT com usuário e empresa selecionada, expiração e identificação de versão da sessão. O cargo precisa ser confirmado conforme o vínculo atual, sem depender indefinidamente de um JWT antigo.
-- [ ] Centralizar resolução do contexto em um helper de servidor, por exemplo `requireEmpresaContext()`, contendo `usuarioId`, `empresaId` e cargo autorizado.
-- [ ] Conferir usuário ativo, empresa ativa e vínculo ativo. Sessões revogadas ou vinculadas a usuário bloqueado não podem continuar operando até expirar o JWT.
-- [ ] Exigir segredo forte fora do desenvolvimento, cookies adequados ao HTTPS e mensagens de erro sem indicar se determinado e-mail existe.
-- [ ] Proteger o login contra tentativas excessivas e validar a origem das operações de escrita baseadas em cookie.
-- [ ] Remover o fallback de credenciais do ambiente na operação SaaS. A demonstração deverá autenticar seu próprio usuário no banco fictício quando essa transição ocorrer.
-- [ ] Rejeitar o JWT legado e orientar um novo login. Não reinterpretá-lo como acesso à empresa padrão.
+- [x] Reaproveitar o formato de hash `scrypt` existente no seed e implementar verificação segura; não comparar senha em texto com o banco.
+- [x] Emitir JWT com usuário e empresa selecionada, expiração e identificação de versão da sessão. O cargo precisa ser confirmado conforme o vínculo atual, sem depender indefinidamente de um JWT antigo.
+- [x] Centralizar resolução do contexto em um helper de servidor, por exemplo `requireEmpresaContext()`, contendo `usuarioId`, `empresaId` e cargo autorizado.
+- [x] Conferir usuário ativo, empresa ativa e vínculo ativo. Sessões revogadas ou vinculadas a usuário bloqueado não podem continuar operando até expirar o JWT.
+- [x] Exigir segredo forte fora do desenvolvimento, cookies adequados ao HTTPS e mensagens de erro sem indicar se determinado e-mail existe.
+- [x] Proteger o login contra tentativas excessivas e validar a origem das operações de escrita baseadas em cookie.
+- [x] Remover o fallback de credenciais do ambiente na operação SaaS. A demonstração deverá autenticar seu próprio usuário no banco fictício quando essa transição ocorrer.
+- [x] Rejeitar o JWT legado e orientar um novo login. Não reinterpretá-lo como acesso à empresa padrão.
 
 **Aceite:** A e B autenticam separadamente. Sem sessão, a API retorna 401; sem vínculo/permissão, 403; objeto inexistente ou pertencente a outra empresa retorna 404 sem expor informações. O contrato deve ser consistente por rota.
 
 ### M4 — Isolar todas as leituras e alterações
 
-- [ ] Exigir contexto nos serviços; não aceitar `empresaId` opcional nem inferir uma empresa global.
-- [ ] Aplicar escopo a buscas, listagens, contagens, agregações, inclusão de relações e consultas por ID.
-- [ ] Na criação, definir a empresa no servidor; não espalhar campos arbitrários do body para o banco.
-- [ ] Em atualização/exclusão, validar posse na própria operação ou transação, incluindo `categoriaId`, `produtoId`, `vendaId` e `sessaoId` recebidos.
-- [ ] Manter abertura de caixa, baixa de estoque, contador de venda e movimentos coerentes sob requisições simultâneas.
-- [ ] Verificar o caixa dentro da transação da venda; uma venda não pode ser concluída em caixa fechado por outra requisição.
-- [ ] Isolar importações CSV/XLSX, inclusive pré-carregamento de códigos, categorias, modo atualizar e mensagens de erro.
-- [ ] Isolar interpretação de etiqueta de balança, configuração, impressão e relatório de caixa por ID.
+- [x] Exigir contexto nos serviços; não aceitar `empresaId` opcional nem inferir uma empresa global.
+- [x] Aplicar escopo a buscas, listagens, contagens, agregações, inclusão de relações e consultas por ID.
+- [x] Na criação, definir a empresa no servidor; não espalhar campos arbitrários do body para o banco.
+- [x] Em atualização/exclusão, validar posse na própria operação ou transação, incluindo `categoriaId`, `produtoId`, `vendaId` e `sessaoId` recebidos.
+- [x] Manter abertura de caixa, baixa de estoque, contador de venda e movimentos coerentes sob requisições simultâneas.
+- [x] Verificar o caixa dentro da transação da venda; uma venda não pode ser concluída em caixa fechado por outra requisição.
+- [x] Isolar importações CSV/XLSX, inclusive pré-carregamento de códigos, categorias, modo atualizar e mensagens de erro.
+- [x] Isolar interpretação de etiqueta de balança, configuração, impressão e relatório de caixa por ID.
 
 **Aceite:** a matriz A/B abaixo passa em todas as áreas, e a demonstração continua permitindo o roteiro do README.
 
@@ -142,20 +177,20 @@ Política inicial proposta, a ser implementada também no servidor:
 
 O caixa depende de abertura por administrador/gerente nessa política inicial. A eventual permissão para o operador abrir ou fechar deve ser uma decisão explícita e testada. Ocultar um botão não basta: a API deve recusar a ação sem permissão. Respostas ao caixa não devem incluir campos de custo por meio de relações completas de produto.
 
-- [ ] Incluir a empresa nas chaves de cache e descartar respostas antigas ao sair ou trocar de contexto.
-- [ ] Limpar carrinho, pagamentos, comprovante e consultas privadas na transição de sessão.
-- [ ] Impedir que uma requisição iniciada na sessão anterior preencha a tela da próxima sessão.
-- [ ] Separar navegação operacional de administração global.
+- [x] Vincular a interface à sessão/empresa, limpar cache e descartar respostas de uma sessão anterior; a implementação usa recarga completa e cabeçalho de sessão, em vez de seleção de empresa na mesma árvore de cache.
+- [x] Limpar carrinho, pagamentos, comprovante e consultas privadas na transição de sessão.
+- [x] Impedir que uma requisição iniciada na sessão anterior preencha a tela da próxima sessão.
+- [x] Separar navegação operacional de administração global.
 
 **Aceite:** o funcionário usa o PDV da empresa correta, sem visualizar custos ou executar alterações administrativas por chamada direta à API. Sair de A e entrar em B no mesmo navegador não mostra dados de A.
 
 ### M6 — Validar e ensaiar implantação
 
-- [ ] Automatizar a matriz A/B e os testes de concorrência relevantes.
-- [ ] Executar os testes de pagamentos existentes, lint e build.
+- [x] Automatizar cenários A/B e concorrência relevantes em SQLite: escopo, relações, importações, sessão, idempotência, última unidade e caixa aberto único. Ampliação e ensaio em PostgreSQL continuam pendentes.
+- [x] Executar os testes de pagamentos existentes, lint e build.
 - [ ] Ensaiar a migração no mesmo mecanismo de banco escolhido para produção; testar só SQLite não valida o comportamento concorrente de PostgreSQL.
-- [ ] Registrar versão da aplicação, backup anterior, resultado da migração, conferência de dados e procedimento de recuperação.
-- [ ] Planejar janela de atualização que impeça escritas durante exportação/migração final.
+- [x] Registrar versão da aplicação, backup anterior, resultado da migração, conferência de dados e procedimento de recuperação.
+- [x] Planejar janela de atualização que impeça escritas durante exportação/migração final.
 
 **Aceite:** o isolamento não depende de disciplina manual de quem usa o sistema; ele é imposto pelo servidor e pelas restrições do banco. Falha na validação impede a liberação multiempresa.
 
@@ -220,8 +255,6 @@ Não copiar SQL de migração SQLite diretamente para PostgreSQL. A carga inicia
 - **Cadastro e recuperação de conta:** planejar convite/cadastro, confirmação de contato e recuperação de senha antes de abrir inscrições ao público. Provisionamento inicial pode ser assistido e seguro, sem senha universal.
 - **Equipamentos e outro produto:** leitores/impressoras serão testados separadamente; locação de computadores e agenda para barbearia não entram nesta migração.
 
-## Próxima alteração de código sugerida
+## Próxima etapa
 
-Começar por **M1 + desenho de M2** em banco descartável: fixtures de duas empresas e migração versionada com conferência de dados. Em seguida, implementar M2 e M3, depois propagar o contexto obrigatório em M4. Não ativar modo multiempresa enquanto houver rotas operacionais globais.
-
-A preparação deste documento não migra bancos, não cria contas reais, não libera cobrança e não muda o funcionamento da demonstração.
+Validar a demonstração no notebook e equipamentos reais; ensaiar uma cópia autorizada do banco legado. Em paralelo, comparar PostgreSQL/hospedagem e preparar a etapa de assinaturas. Não contratar serviços nem prometer emissão fiscal apenas por a fundação multiempresa estar implementada.

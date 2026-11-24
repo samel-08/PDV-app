@@ -2,23 +2,31 @@
 
 PDV web para pequenos comércios, com Next.js, React, TypeScript, Prisma e SQLite. Interface em português e valores em reais.
 
-## Estado atual e acesso
+## Estado atual
 
-O sistema funciona como **uma instalação de uma única loja**. O login atual usa credenciais de configuração; não há cadastro de clientes do SaaS, seleção de empresa ou isolamento de dados por usuário. As tabelas iniciais de empresas e licenças ainda não controlam o acesso operacional.
+O sistema tem **usuários individuais vinculados a empresas**. Produtos, categorias, estoque, vendas, caixa, configurações, importações, relatórios e comprovantes usam a empresa da sessão autenticada. Dono e funcionários compartilham os dados da mesma loja, com permissões por cargo.
 
-**Trocar o usuário ou a senha não troca os produtos nem o banco.** A demonstração abaixo é separada por arquivo de banco e comandos próprios, não por uma senha especial. Não coloque empresas diferentes nesta instalação esperando que os logins separem seus dados.
+O primeiro escopo é **uma loja por empresa, um caixa aberto por empresa e um vínculo ativo de empresa por usuário**. Se uma conta tiver vários vínculos ativos, o login recusa a entrada sem escolher uma empresa silenciosamente. Seleção de empresa, filiais, cadastro público e assinaturas ainda não estão disponíveis.
 
-O comprovante é **não fiscal**: não emite NFC-e, não autoriza documentos na SEFAZ e não processa pagamentos. Dinheiro, Pix e cartão são formas de pagamento registradas manualmente no PDV. Assinaturas, cobrança automática e emissão fiscal são etapas futuras.
+A implementação atual usa SQLite. Migração e testes de PostgreSQL, hospedagem, cobrança, emissão fiscal e operação sem internet com sincronização continuam etapas futuras. O comprovante é **não fiscal**. Pix e cartão são registrados manualmente como formas de pagamento, sem cobrança pelo provedor.
+
+## Indicadores de gestão
+
+- **Margem bruta por produto:** coluna na lista e prévia no formulário, separada do markup. Custo R$ 60 e venda R$ 100 resultam em margem de 40%. Venda abaixo do custo mostra valor negativo. Custo/venda não positivos mostram margem indisponível; taxas, impostos e despesas não estão incluídos.
+- **Horários de pico:** seção do dashboard com filtro de datas (até 93 dias), quantidade e valor das vendas concluídas em cada hora, incluindo empates no pico. O relatório usa o fuso de São Paulo, respeita a empresa autenticada e permite consulta apenas a administrador/gerente. Atualiza a cada 60 segundos enquanto a tela está ativa.
+- Não é necessário migrar o banco para esses indicadores. Os demais recursos pendentes continuam no [plano de evolução](docs/plano-evolucao-saas.md).
+
+Verifique os cálculos com `npm run test:indicadores`. Os testes de integração e leitura móvel fazem parte de `npm run test:e2e` (requer build e navegador Playwright).
 
 ## Requisitos
 
-- Node.js 20 ou superior compatível com o Next.js 15 e npm.
+- **Node.js 22.12 ou superior** e npm.
 - Navegador atualizado.
-- Internet para instalar dependências e fazer o primeiro build (inclui download da fonte). Depois de preparado, o servidor local pode ser acessado na mesma máquina sem hospedagem externa.
+- Internet para instalar dependências e fazer o primeiro build, inclusive o download da fonte.
 
-## Demonstração local com dados fictícios
+## Demonstração com dados fictícios
 
-Na pasta do projeto, execute:
+Na pasta do projeto:
 
 ```bash
 npm ci
@@ -26,47 +34,40 @@ npm run demo:setup
 npm run demo:dev
 ```
 
-Abra **http://localhost:3000**. O preparo informa o usuário `demo` e uma **senha aleatória**, salva em `.env.demo`. Esse arquivo contém também o segredo da sessão e não é versionado. Para trocar credenciais, edite os valores simples, sem aspas, de `.env.demo` e reinicie o servidor. Não use as credenciais do seed de superadministrador: aquele cadastro ainda não participa do login.
+Abra **http://localhost:3000**. O preparo informa o usuário `demo` e uma senha aleatória, armazenados somente em `.env.demo`. Não existe senha universal `admin`.
 
-Os comandos `demo:*` usam exclusivamente **`prisma/demo.db`**, mesmo se houver `DATABASE_URL` no `.env` ou no terminal. Não alteram `.env`, `prisma/dev.db` ou o seed normal. `.env` e `.env.demo` não devem ser compartilhados nem enviados ao GitHub.
+Os comandos `demo:*` usam exclusivamente **`prisma/demo.db`**, com empresa e usuário próprios. Ignoram o `DATABASE_URL` da instalação real e não sobrescrevem `.env`. Se já houver uma demonstração antiga, o preparo migra esse arquivo fictício, mantém seus dados e provisiona o usuário da demonstração. Repetir o preparo não repõe o estoque nem apaga vendas; ele revalida as credenciais da demonstração e revoga suas sessões anteriores.
 
-O preparo cria seis produtos com estoque: bebidas, dois produtos a granel e duas peças de vestuário. As peças são produtos separados, sem um módulo de grades de tamanho/cor. Configura uma loja fictícia em Curitiba, sem CNPJ real, e uma interpretação de etiqueta de balança para testes.
-
-Executar `demo:setup` novamente **preserva vendas, estoque e configurações já existentes**; não reinicia o banco nem repõe o estoque consumido. Não há reset automático. Se precisar de uma demonstração limpa, pare o servidor, faça uma cópia do banco de demonstração, remova somente `prisma/demo.db` e seus eventuais arquivos auxiliares e execute `demo:setup` novamente. Nunca faça isso com um banco real.
-
-### Apresentação com build otimizado
-
-O modo de desenvolvimento é útil para ajustes. Para apresentar, pare o servidor e execute:
+Para apresentar com build otimizado, pare o modo de desenvolvimento:
 
 ```bash
 npm run demo:build
 npm run demo:start
 ```
 
-O servidor fica restrito a `127.0.0.1:3000`. Os comandos normais e os de demonstração usam a mesma porta e a mesma pasta de build `.next`; execute uma modalidade de cada vez e refaça o build ao trocar de versão. Não use estes comandos para oferecer acesso público ou operação multiempresa.
+As modalidades normal e de demonstração compartilham a porta 3000 e a pasta `.next`: execute uma de cada vez e refaça o build após mudar de versão. A demonstração não é ativada por uma senha especial em um banco real.
 
-### Roteiro de cinco minutos
+### Roteiro de apresentação
 
-1. Entre com o usuário e a senha informados pelo preparo.
-2. Abra o caixa com R$ 100 de saldo inicial.
-3. Busque `001` (água, R$ 2,50) e adicione uma unidade.
-4. Digite a etiqueta fictícia **`2100010002500`**: ela representa 250 g de granola, cadastrada a R$ 32/kg (R$ 8,00).
-5. Confira o total de R$ 10,50. Registre R$ 20 em dinheiro e verifique R$ 9,50 de troco.
-6. Abra o comprovante não fiscal. Sem impressora, use a prévia do navegador ou salve em PDF.
-7. Confira a venda no histórico, a baixa do estoque e os indicadores.
-8. Feche o caixa: se essa foi a única movimentação após abrir, o saldo esperado é R$ 110,50.
+1. Entre com a credencial exibida no preparo e abra o caixa com R$ 100.
+2. Adicione `001` — uma água de R$ 2,50.
+3. Digite a etiqueta fictícia **`2100010002500`** — 250 g de granola a R$ 32/kg, total R$ 8.
+4. Confira a venda de R$ 10,50 e registre R$ 20 em dinheiro: troco R$ 9,50.
+5. Abra o comprovante não fiscal; sem impressora, use a prévia ou salve em PDF.
+6. Confira histórico, estoque e indicadores.
+7. Feche o caixa: sem outras movimentações, o saldo esperado é R$ 110,50.
 
-A etiqueta serve apenas para demonstrar a interpretação do código; a integração física com leitores, balanças e impressoras deve ser testada no equipamento utilizado. Use a demonstração com dados fictícios, sem informações de clientes reais.
+O catálogo contém seis produtos por unidade/peso, incluindo duas peças de vestuário separadas. Não existe módulo de grade de tamanho/cor. Leitor, impressora e desempenho devem ser conferidos no equipamento real.
 
-## Instalação local com banco próprio
+## Instalação nova com banco próprio
 
-**Se já existe `.env` ou um banco com dados, preserve ambos e faça backup antes de atualizar o schema.** A sequência abaixo é para uma instalação nova:
+**Se já existe `.env` ou banco com dados, preserve ambos e leia a seção de migração.** Não substitua o banco pelo arquivo da demonstração.
 
 ```bash
 npm ci
 ```
 
-Copie `.env.example` para `.env` apenas se este não existir:
+Copie `.env.example` para `.env` somente se o arquivo não existir:
 
 ```powershell
 # Windows PowerShell
@@ -78,82 +79,102 @@ Copy-Item .env.example .env
 cp -n .env.example .env
 ```
 
-Edite o `.env` e configure:
+Preencha no `.env`:
 
 | Variável | Uso |
 | --- | --- |
 | `DATABASE_URL` | `file:./dev.db` usa `prisma/dev.db`. |
-| `PDV_LOGIN_USER` | Usuário local; por exemplo, `admin`. Se omitido, a verificação de usuário é desativada. |
-| `PDV_LOGIN_PASSWORD` | Defina uma senha própria com pelo menos 4 caracteres; prefira uma senha longa. O modelo deixa o valor vazio para você preencher. |
-| `PDV_SESSION_SECRET` | Segredo aleatório longo para assinar sessões; não compartilhe. |
-| `PDV_COOKIE_SECURE` | `false` em localhost HTTP; `true` ao usar HTTPS. |
+| `PDV_SESSION_SECRET` | Segredo aleatório de pelo menos 32 caracteres. Sem fallback de desenvolvimento. |
+| `PDV_COOKIE_SECURE` | `false` para localhost HTTP; `true` para HTTPS. |
+| `APP_ORIGIN` | Origem pública exata, por exemplo `https://app.seudominio.com.br`, sem `/` final. Em localhost pode ficar vazia. |
+| `EMPRESA_ID`, `EMPRESA_NOME` | ID estável escolhido para a loja e seu nome. Sem ID, será gerado um e informado pelo comando. Guarde-o para novos funcionários. |
+| `ACCOUNT_LOGIN`, `ACCOUNT_PASSWORD`, `ACCOUNT_NAME` | Login/e-mail, senha de 12–256 caracteres e nome do administrador a provisionar. |
+| `ACCOUNT_ROLE` | `ADMINISTRADOR`, `GERENTE` ou `CAIXA`. Uma empresa nova precisa de administrador. |
+| `ACCOUNT_RESET_EXISTING` | `false` preserva credenciais existentes. `true` redefine explicitamente a senha do login na empresa escolhida e revoga suas sessões. |
 
-Para gerar um segredo:
+Gere o segredo:
 
 ```bash
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-**Senha padrão legada:** em `npm run dev`, se `PDV_LOGIN_PASSWORD` estiver completamente ausente, o código usa `admin`. Uma variável definida como vazia não ativa esse padrão. Em produção não existe esse fallback. Essa senha não ativa um modo de demonstração e não seleciona outra empresa. Para a demonstração, prefira os comandos `demo:*`, com credenciais próprias geradas.
-
 Depois de configurar uma instalação nova:
 
 ```bash
-npm run db:push
-npm run db:seed
+npm run db:init
+npm run account:create
 npm run dev
 ```
 
-O seed normal mantém os produtos legados com estoque inicial zero; ajuste o estoque antes de vender. Ele também cria a fundação de empresas/planos/usuários, mas esses cadastros não são usados pelo login atual. `SUPER_ADMIN_EMAIL` e `SUPER_ADMIN_PASSWORD` configuram apenas esse cadastro futuro; não são as credenciais atuais do PDV.
+`db:init` cria o schema versionado e verifica a versão em execuções seguintes. **Não cria usuários ou senhas padrão.** `account:create` é provisionamento administrativo por terminal, não cadastro público. O login lê o hash no banco; mudar a variável `ACCOUNT_PASSWORD` sem executar o provisionamento não muda a senha.
 
-Para compilar e iniciar esta instalação:
+`PDV_LOGIN_USER` e `PDV_LOGIN_PASSWORD` só alimentam a preparação do banco fictício nos comandos de demonstração. Não permitem entrar diretamente em uma instalação normal. `SUPER_ADMIN_EMAIL` e `SUPER_ADMIN_PASSWORD` não concedem mais um login global.
+
+Para criar um funcionário, mantenha o `EMPRESA_ID` da loja, escolha outro `ACCOUNT_LOGIN`, nome, senha e cargo e execute `account:create`. Não há vinculação automática de um login já pertencente a outra empresa. Ao terminar, remova os campos de senha de provisionamento do `.env` se não precisar deles; o hash permanece no banco.
+
+Para compilar e iniciar localmente:
 
 ```bash
 npm run build
 npm run start:local
 ```
 
-## Próximo desenvolvimento: isolamento por empresa
+## Atualização de banco antigo
 
-O próximo passo é substituir o login único por usuários vinculados a empresas e isolar produtos, vendas, estoque, caixa, relatórios e importações. O [plano de evolução SaaS](docs/plano-evolucao-saas.md) registra a ordem de execução, os arquivos envolvidos, a migração dos dados e os testes com duas empresas.
+A migração **não é executada ao abrir o site**. Ela foi testada em arquivos fictícios, não no seu notebook. Consulte o [procedimento operacional](docs/multiempresa-operacional.md) e ensaie primeiro com uma cópia.
 
-Esse plano ainda não é uma funcionalidade pronta. A demonstração e as credenciais descritas acima continuam sendo de uma única instalação. O vínculo com empresa, e não apenas o nome do usuário, determinará os dados disponíveis na versão futura.
+1. Pare o servidor antigo, preserve seu `.env` e faça uma cópia externa do banco.
+2. Defina `MIGRATION_EMPRESA_ID` como a empresa dona de todos os dados da instalação antiga. Preencha `MIGRATION_EMPRESA_NOME` se ela ainda não existir.
+3. Execute `npm run db:migrate:legacy` sobre a cópia. O comando também cria um backup consistente antes das alterações e informa seu caminho.
+4. Confira as contagens, valores, estoque, configurações e histórico. Se houver referências inválidas ou mais de um caixa aberto, a migração falha e reverte as alterações.
+5. Provisione um administrador com senha nova. **Contas SaaS antigas ficam bloqueadas**, porque podiam conter senhas de seed que nunca eram utilizadas pelo login anterior.
+6. Para reativar explicitamente um login antigo da empresa, use `ACCOUNT_RESET_EXISTING=true` e uma senha nova com `account:create`; depois volte a opção para `false`.
+7. Só depois do ensaio, repita o procedimento no banco escolhido para uso.
 
-### Ensaio de migração em banco descartável
+Os registros antigos mantêm IDs, datas, estoque e valores; operadores históricos desconhecidos ficam nulos. A numeração da empresa continua a partir da maior venda existente. Tokens de sessão antigos deixam de funcionar: todos precisam entrar novamente.
 
-A preparação da migração já pode ser executada com duas lojas fictícias, sem usar o banco real:
+`db:push` agora é um alias do instalador seguro para compatibilidade. Não execute `npx prisma db push`, `migrate reset` ou SQL experimental contra um banco com dados. O instalador atual aceita SQLite; PostgreSQL exige migração própria.
 
-```bash
-npm run lab:tenancy
-npm run test:tenancy
-```
+## Permissões
 
-O ensaio confere preservação dos dados, códigos iguais em empresas diferentes, rejeição de vínculos cruzados e rollback. Ele cria e remove seu próprio SQLite, ignorando `DATABASE_URL`. Isso **não ativa contas multiempresa no PDV**. Veja [o funcionamento e os limites do laboratório](docs/ensaio-migracao-multiempresa.md).
+| Ação | Administrador | Gerente | Caixa |
+| --- | --- | --- | --- |
+| Buscar produtos, registrar venda e consultar/imprimir vendas da loja | Sim | Sim | Sim |
+| Alterar produtos/categorias, importar catálogo e ajustar estoque | Sim | Sim | Não |
+| Abrir/fechar caixa, sangria e reforço | Sim | Sim | Não |
+| Indicadores e relatórios gerenciais | Sim | Sim | Não |
+| Alterar configurações da loja/balança | Sim | Não | Não |
 
-## Funcionalidades
+O caixa aguarda abertura por administrador/gerente. APIs recusam ações sem permissão, mesmo quando chamadas diretamente. Respostas ao caixa omitem custos e margem. Consultas operacionais sem contexto de empresa falham; trocar IDs ou enviar `empresaId` no corpo não concede acesso a outra loja.
 
-- Produtos, categorias, busca, preço de custo/venda e unidades de medida.
-- Estoque, ajustes, estoque mínimo e movimentações.
-- Carrinho, leitura de códigos, produtos por peso e pagamento dividido.
-- Abertura, sangria, reforço e fechamento de caixa.
-- Histórico, indicadores e comprovante de venda não fiscal.
-- Dados da loja e configuração de interpretação de etiquetas de balança.
+As sessões duram até 12 horas, podem ser revogadas e verificam vínculo/cargo/status no banco a cada requisição. Logout revoga o cookie no servidor. A interface recarrega a sessão ao entrar/sair e descarta cache/carrinho; abas antigas são avisadas da troca, e o servidor recusa uma sessão de aba incompatível com o cookie atual.
 
 ## Verificação
 
 ```bash
 npm run test:pagamentos
+npm run test:tenancy
+npm run test:operational
 npm run lint
-npm run demo:build
+npm run build
 ```
 
-Os testes de pagamentos cobrem falta de um centavo, troco de um centavo, excedente sem dinheiro, pagamento dividido e somas fracionadas. A compilação não substitui o roteiro manual nem o teste de impressão e equipamentos no notebook de apresentação.
+Para testar APIs e navegador com duas empresas fictícias:
 
-## Cuidados com dados e evolução comercial
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
 
-- Não versione `.env`, `.env.demo`, senhas, certificados ou bancos SQLite. O `.env.example` contém somente um modelo público de configuração.
-- Faça backup do SQLite com o servidor parado e guarde a cópia fora da máquina; valide a recuperação.
-- Para várias lojas, ainda será necessário login individual, permissões e isolamento completo por empresa, além de infraestrutura, backups e monitoramento.
-- A futura migração para PostgreSQL exige planejamento dos dados e das migrações; não basta trocar a URL.
-- O estado da fundação SaaS no schema é mais recente que o inventário histórico em `docs/arquitetura-atual.md`.
-- Em notebooks fracos, use o build otimizado e teste o equipamento real. SQLite continua adequado para esta demonstração local.
+O teste abre um servidor exclusivo na porta **3137**, cria seu próprio banco em `work/e2e/` e o remove ao terminar. Não usa o banco normal nem o da demonstração. As credenciais dos arquivos de teste são apenas dessas fixtures descartáveis. Bancos, logs e rastros ficam ignorados pelo Git. Um encerramento forçado do processo pode deixar artefatos em `work/`, que podem ser removidos depois de parar os testes.
+
+O ensaio histórico também continua disponível com `npm run lab:tenancy`; ele é separado da implementação operacional. Veja [o laboratório](docs/ensaio-migracao-multiempresa.md) e [o plano de evolução](docs/plano-evolucao-saas.md).
+
+## Próximas etapas comerciais
+
+- Escolher e ensaiar PostgreSQL, hospedagem, backups externos e monitoramento.
+- Implementar planos, cobrança, avisos de vencimento, bloqueio comercial e reativação.
+- Integrar emissão fiscal do Paraná com os requisitos do lojista e do contador.
+- Validar impressão, leitores e desempenho no notebook de apresentação.
+
+Não versione `.env`, `.env.demo`, senhas, certificados, bancos ou backups. A `.env.example` é apenas um modelo sem credenciais reais.

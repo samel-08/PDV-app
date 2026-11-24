@@ -2,9 +2,9 @@
 
 ## Entrega e limite
 
-Este laboratório implementa o primeiro ensaio de M1 e parte do desenho de M2 do [plano SaaS](plano-evolucao-saas.md). Ele cria uma origem fictícia de uma loja, migra seus dados para uma empresa explícita e acrescenta uma segunda empresa para testar as restrições do modelo proposto.
+Este laboratório preserva o primeiro ensaio de M1 e parte do desenho de M2 do [plano SaaS](plano-evolucao-saas.md). Ele cria uma origem fictícia de uma loja, migra seus dados para uma empresa explícita e acrescenta uma segunda empresa para testar as restrições do modelo proposto.
 
-**Não é uma atualização da aplicação para multiempresa.** O schema operacional `prisma/schema.prisma`, o login, as rotas e a demonstração permanecem iguais. Não tente entrar com os usuários A/B no PDV: eles existem somente durante o ensaio descartável e não têm senhas de acesso fornecidas.
+**Não é uma atualização da aplicação para multiempresa.** O schema operacional evolui separadamente; este laboratório mantém sua origem histórica em `prisma/tenant-lab/legacy-schema.prisma`. Não tente entrar com os usuários A/B deste laboratório no PDV: eles existem somente durante o ensaio descartável e não têm senhas de acesso fornecidas. A implementação e os testes operacionais são descritos em [multiempresa operacional](multiempresa-operacional.md).
 
 ## Como executar
 
@@ -54,7 +54,7 @@ Essa estratégia foi ensaiada em SQLite descartável; não é um procedimento pr
 - Uma origem com dois caixas abertos é recusada sem alterações; o conflito precisa ser resolvido antes de migrar.
 - Um arquivo externo apontado por `DATABASE_URL` permanece intacto.
 
-O helper `productForUser()` pertence exclusivamente ao laboratório: exige vínculo ativo e consulta produto com filtro de empresa. **Ele não protege as rotas atuais.** O banco compartilhado ainda permite uma consulta SQL sem filtro listar várias empresas; proteger leituras depende da futura autorização e do escopo obrigatório na aplicação. As chaves compostas protegem a coerência das relações, não substituem essa autorização.
+O helper `productForUser()` pertence exclusivamente ao laboratório: exige vínculo ativo e consulta produto com filtro de empresa. **Ele não protege as rotas atuais.** O banco compartilhado permite que um cliente privilegiado faça consultas sem filtro; na implementação operacional, as leituras são protegidas pela autorização e pelo cliente Prisma com escopo obrigatório. As chaves compostas protegem a coerência das relações, não substituem essa autorização.
 
 ## Como manter o ensaio
 
@@ -81,4 +81,4 @@ O executor de SQL é específico para os arquivos versionados deste laboratório
 - Cache e carrinho separados por sessão/empresa, com testes no navegador.
 - Adaptação dos seeds normal e de demonstração quando o schema operacional mudar.
 
-As duas empresas deste ensaio não devem ser oferecidas como contas funcionais do produto. A próxima etapa é implementar a migração operacional e a identidade; a liberação fica condicionada à matriz completa do plano SaaS.
+As duas empresas deste ensaio não devem ser oferecidas como contas funcionais do produto. A migração e a identidade operacionais estão em arquivos separados. A liberação comercial continua condicionada à validação do ambiente, dos dados reais e às demais etapas do plano SaaS.

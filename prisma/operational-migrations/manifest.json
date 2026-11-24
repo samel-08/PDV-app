@@ -1,0 +1,10 @@
+{
+  "schema": "84cfdce32c66a87b1ce590956bd1d31829fa2751cba107cb1da767613c6e48d6",
+  "files": {
+    "000_foundation.sql": "f1d32d2bb9e12687720fa94e017d6b6da5fccdaa993c31704f0fcd55675795d2",
+    "000_fresh.sql": "b2fe9fd899e9cbc47bea39f709d67b0440a773c7b77de024cd902d3765ec69d5",
+    "001_expand.sql": "5ca5f59f53de96b09e5003d183e0e955781b8d960b5de2b0d090d89d067a3a0d",
+    "002_constraints.sql": "deb1c406c3a7094f8d663adb94dfe5eba75d261b4456de7f89fba9823f13fb16",
+    "003_identity.sql": "6e296e5206af3a97927c78138981d84986a8e10531b9651dfcf9f8d9d20fcdcf"
+  }
+}

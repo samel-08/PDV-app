@@ -1,5 +1,6 @@
 "use client";
 
+import { HorariosPico } from "@/components/horarios-pico";
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -144,7 +145,7 @@ export default function DashboardPage() {
         <Card title="Quantidade de vendas (mês)" value={String(data.qtdMes)} />
         <Card title="Ticket médio mensal" value={formatBRL(data.ticketMedioMes)} />
         <Card title="Ticket médio geral" value={formatBRL(data.ticketMedioGeral)} />
-        <Card title="Lucro estimado (mês)" value={formatBRL(data.lucroMes)} hint="Com base nos custos atuais dos produtos." />
+        <Card title="Lucro estimado (mês)" value={formatBRL(data.lucroMes)} hint="Com base no custo registrado nos itens das vendas; sem taxas e despesas." />
         <Card
           title="Produto mais vendido (mês)"
           value={data.produtoMaisVendido ? data.produtoMaisVendido.nome : "—"}
@@ -218,6 +219,8 @@ export default function DashboardPage() {
           </div>
         </DashboardListCard>
       </div>
+
+      <HorariosPico />
 
       <DashboardCharts data={chartSlice} />
 

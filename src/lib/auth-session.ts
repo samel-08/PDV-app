@@ -1,62 +1,72 @@
 import { SignJWT, jwtVerify } from "jose";
-
 const COOKIE = "pdv_session";
-
-/** 7 dias */
-export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7;
-
+export const SESSION_MAX_AGE_SEC = 60 * 60 * 12;
 function getSecret() {
-  const s = process.env.PDV_SESSION_SECRET;
-  if (!s || s.length < 8) {
-    return new TextEncoder().encode("pdv-dev-secret-altere-em-producao");
-  }
-  return new TextEncoder().encode(s);
+  const secret = process.env.PDV_SESSION_SECRET;
+  if (!secret || secret.length < 32)
+    throw new Error(
+      "Configure PDV_SESSION_SECRET com pelo menos 32 caracteres.",
+    );
+  return new TextEncoder().encode(secret);
 }
-
-/**
- * Cookie `Secure` só quando `PDV_COOKIE_SECURE=true` (HTTPS).
- * Padrão: false — permite login em localhost e na LAN via HTTP (ex.: http://192.168.x.x:3000).
- */
-export function isSessionCookieSecure(): boolean {
-  const v = process.env.PDV_COOKIE_SECURE?.trim().toLowerCase();
-  return v === "true" || v === "1" || v === "yes";
+export function isSessionCookieSecure() {
+  const value = process.env.PDV_COOKIE_SECURE?.trim().toLowerCase();
+  return value
+    ? ["true", "1", "yes"].includes(value)
+    : !!process.env.APP_ORIGIN?.startsWith("https://");
 }
-
-export type SessionCookieOptions = {
-  httpOnly: true;
-  secure: boolean;
-  sameSite: "lax";
-  path: "/";
-  maxAge?: number;
-};
-
-export function sessionCookieOptions(maxAge?: number): SessionCookieOptions {
-  const base = {
+export function sessionCookieOptions(maxAge?: number) {
+  return {
     httpOnly: true as const,
     secure: isSessionCookieSecure(),
     sameSite: "lax" as const,
-    path: "/" as const,
+    path: "/",
+    ...(maxAge === undefined ? {} : { maxAge }),
   };
-  if (maxAge === undefined) return base;
-  return { ...base, maxAge };
 }
-
-export async function createSessionJwt(): Promise<string> {
-  return new SignJWT({ sub: "pdv" })
+export type SessionClaims = {
+  usuarioId: string;
+  empresaId: string;
+  sessaoId: string;
+};
+export async function createSessionJwt(claims: SessionClaims) {
+  return new SignJWT({ empresaId: claims.empresaId, v: 2 })
+    .setSubject(claims.usuarioId)
+    .setJti(claims.sessaoId)
     .setProtectedHeader({ alg: "HS256" })
+    .setIssuer("pdv-comercio")
+    .setAudience("pdv-operacional")
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(`${SESSION_MAX_AGE_SEC}s`)
     .sign(getSecret());
 }
-
-export async function verifySessionJwt(token: string | undefined): Promise<boolean> {
-  if (!token) return false;
+export async function readSessionJwt(
+  token: string | undefined,
+): Promise<SessionClaims | null> {
+  if (!token) return null;
   try {
-    await jwtVerify(token, getSecret());
-    return true;
+    const { payload } = await jwtVerify(token, getSecret(), {
+      algorithms: ["HS256"],
+      issuer: "pdv-comercio",
+      audience: "pdv-operacional",
+    });
+    if (
+      payload.v !== 2 ||
+      !payload.sub ||
+      !payload.jti ||
+      typeof payload.empresaId !== "string"
+    )
+      return null;
+    return {
+      usuarioId: payload.sub,
+      empresaId: payload.empresaId,
+      sessaoId: payload.jti,
+    };
   } catch {
-    return false;
+    return null;
   }
 }
-
+export async function verifySessionJwt(token: string | undefined) {
+  return !!(await readSessionJwt(token));
+}
 export { COOKIE };
